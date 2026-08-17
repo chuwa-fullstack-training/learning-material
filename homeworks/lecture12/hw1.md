@@ -1,3 +1,9 @@
+# HTML to React
+
+> 🟡 Simple syntax conversion — AI can assist, but understand JSX rules.
+
+Turn the HTML below into a **Function Component** and render it using Vite + React.
+
 ```html
 <h2>What is Frontend?</h2>
 <ul>
@@ -9,4 +15,8 @@
 </ul>
 ```
 
-Turn the HTML above into React components and display
+## Requirements
+
+- [ ] Use a Function Component (not a class)
+- [ ] Fix any HTML → JSX differences (`class` → `className`, etc.)
+- [ ] Render it inside the Vite React app

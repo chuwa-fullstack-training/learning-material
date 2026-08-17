@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Predict first, NO AI.
+ * Promise chains: reason about each `.then`/`.catch` — is its input the fulfilled or rejected value?
+ *
+ * Submit `learning-log.md`:
+ *   - In #2, why is the final `.then` still called even though we started with reject?
+ *   - In #3, what does Promise.all do with multiple rejects — which error wins?
+ */
+
 // what is the output? and explain why?
 
 // 1

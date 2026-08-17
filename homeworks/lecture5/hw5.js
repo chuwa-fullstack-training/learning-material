@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Promisifying a callback-based API is a core asynchronous skill.
+ *
+ * Submit `learning-log.md`:
+ *   - When do you call `resolve` vs `reject`?
+ *   - Why does forgetting to handle the `error` event cause the Promise to hang?
+ */
+
 // change http request into promise-based function
 
 const https = require('https');

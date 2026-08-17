@@ -1,0 +1,2580 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Lecture 2 — Statements, Objects &amp; Arrays</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            rel="stylesheet"
+            href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap"
+        />
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        />
+
+        <style>
+            /* === THEME: Tokyo Night IDE (matches lecture1) === */
+            :root {
+                --stage-bg: #0b0d17;
+                --slide-bg: #0b0d17;
+                --win-bg: #1a1b26;
+                --win-bar: #16161e;
+                --panel: #1f2335;
+                --panel-2: #232846;
+                --border: #2a2e45;
+                --border-soft: #20243a;
+                --fg: #c0caf5;
+                --fg-dim: #9aa5ce;
+                --fg-faint: #565f89;
+                --blue: #7aa2f7;
+                --cyan: #7dcfff;
+                --green: #9ece6a;
+                --purple: #bb9af7;
+                --orange: #ff9e64;
+                --red: #f7768e;
+                --yellow: #e0af68;
+                --teal: #73daca;
+                --accent: var(--blue);
+                --accent-2: var(--cyan);
+                --font-display: "Cabinet Grotesk", sans-serif;
+                --font-body: "Hanken Grotesk", sans-serif;
+                --font-mono: "JetBrains Mono", monospace;
+                --ease: cubic-bezier(0.16, 1, 0.3, 1);
+                --dur: 0.62s;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            /* === VIEWPORT BASE (verbatim from viewport-base.css) === */
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                overflow: hidden;
+                background: var(--stage-bg, #000);
+            }
+            .deck-viewport {
+                position: fixed;
+                inset: 0;
+                overflow: hidden;
+                background: var(--stage-bg, #000);
+            }
+            .deck-stage {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 1920px;
+                height: 1080px;
+                overflow: hidden;
+                transform-origin: 0 0;
+                background: var(--slide-bg, #fff);
+            }
+            .slide {
+                position: absolute;
+                inset: 0;
+                width: 1920px;
+                height: 1080px;
+                overflow: hidden;
+                display: block;
+                visibility: hidden;
+                opacity: 0;
+                pointer-events: none;
+                background: var(--slide-bg, #fff);
+            }
+            .slide.active,
+            .slide.visible {
+                visibility: visible;
+                opacity: 1;
+                pointer-events: auto;
+                z-index: 1;
+            }
+            img,
+            video,
+            canvas,
+            svg {
+                max-width: 100%;
+                max-height: 100%;
+            }
+            .deck-controls {
+                position: fixed;
+                left: 50%;
+                bottom: 22px;
+                transform: translateX(-50%);
+                z-index: 1000;
+            }
+            @media print {
+                html,
+                body {
+                    width: 1920px;
+                    height: auto;
+                    overflow: visible;
+                    background: #fff;
+                }
+                .deck-viewport {
+                    position: static;
+                    overflow: visible;
+                    background: #fff;
+                }
+                .deck-stage {
+                    position: static;
+                    width: auto;
+                    height: auto;
+                    transform: none !important;
+                    background: none;
+                }
+                .slide {
+                    position: relative;
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    pointer-events: auto !important;
+                    width: 1920px;
+                    height: 1080px;
+                    break-after: page;
+                    page-break-after: always;
+                }
+                .slide:last-child {
+                    break-after: auto;
+                    page-break-after: auto;
+                }
+                .deck-controls {
+                    display: none !important;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation-duration: 0.01ms !important;
+                    transition-duration: 0.2s !important;
+                }
+            }
+
+            /* === SLIDE SHELL === */
+            .slide {
+                background:
+                    radial-gradient(
+                        1200px 700px at 85% -10%,
+                        rgba(122, 162, 247, 0.1),
+                        transparent 60%
+                    ),
+                    radial-gradient(
+                        900px 600px at -5% 110%,
+                        rgba(125, 207, 255, 0.07),
+                        transparent 55%
+                    ),
+                    var(--stage-bg);
+                color: var(--fg);
+                font-family: var(--font-body);
+                padding: 56px 64px;
+            }
+
+            /* === EDITOR WINDOW === */
+            .win {
+                width: 100%;
+                height: 100%;
+                background: var(--win-bg);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                box-shadow:
+                    0 40px 120px rgba(0, 0, 0, 0.55),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .titlebar {
+                height: 64px;
+                flex: 0 0 64px;
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                padding: 0 26px;
+                background: linear-gradient(180deg, #1c1d2b, var(--win-bar));
+                border-bottom: 1px solid var(--border-soft);
+            }
+            .dots {
+                display: flex;
+                gap: 10px;
+            }
+            .dots span {
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                display: block;
+            }
+            .dots .r {
+                background: #f7768e;
+            }
+            .dots .y {
+                background: #e0af68;
+            }
+            .dots .g {
+                background: #9ece6a;
+            }
+            .tab {
+                font-family: var(--font-mono);
+                font-size: 19px;
+                font-weight: 500;
+                color: var(--fg-dim);
+                background: var(--win-bg);
+                padding: 8px 18px;
+                border-radius: 9px 9px 0 0;
+                border: 1px solid var(--border-soft);
+                border-bottom: none;
+                position: relative;
+                top: 1px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .tab::before {
+                content: "";
+                width: 9px;
+                height: 9px;
+                border-radius: 2px;
+                background: var(--accent);
+                box-shadow: 0 0 10px var(--accent);
+            }
+            .breadcrumb {
+                margin-left: auto;
+                font-family: var(--font-mono);
+                font-size: 16px;
+                color: var(--fg-faint);
+                letter-spacing: 0.04em;
+            }
+            .breadcrumb b {
+                color: var(--cyan);
+                font-weight: 500;
+            }
+
+            .canvas {
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                padding: 60px 76px 40px;
+                position: relative;
+            }
+            .canvas::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 64px;
+                background: linear-gradient(
+                    90deg,
+                    rgba(86, 95, 137, 0.1),
+                    transparent
+                );
+                border-right: 1px solid var(--border-soft);
+            }
+
+            .statusbar {
+                height: 52px;
+                flex: 0 0 52px;
+                display: flex;
+                align-items: center;
+                background: linear-gradient(90deg, var(--accent), #5a7fd6);
+                color: #0b0d17;
+                font-family: var(--font-mono);
+                font-size: 16px;
+                font-weight: 500;
+            }
+            .statusbar .seg {
+                padding: 0 20px;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                gap: 9px;
+            }
+            .statusbar .seg.branch {
+                background: rgba(0, 0, 0, 0.18);
+            }
+            .statusbar .spacer {
+                flex: 1;
+            }
+            .statusbar .seg.right {
+                background: rgba(0, 0, 0, 0.1);
+            }
+
+            /* === TYPOGRAPHY === */
+            .kicker {
+                font-family: var(--font-mono);
+                font-size: 20px;
+                font-weight: 500;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--accent-2);
+                margin-bottom: 18px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .kicker::before {
+                content: "//";
+                color: var(--fg-faint);
+            }
+
+            h2.title {
+                font-family: var(--font-display);
+                font-weight: 800;
+                font-size: 74px;
+                line-height: 1.02;
+                letter-spacing: -0.02em;
+                color: var(--fg);
+                margin-bottom: 28px;
+            }
+            h2.title .hl {
+                color: var(--accent);
+            }
+
+            ul.list {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+            ul.list li {
+                font-size: 28px;
+                line-height: 1.4;
+                color: var(--fg);
+                padding-left: 38px;
+                position: relative;
+            }
+            ul.list li::before {
+                content: "▸";
+                position: absolute;
+                left: 0;
+                top: 1px;
+                color: var(--accent);
+                font-family: var(--font-mono);
+            }
+            ul.list li.sub {
+                padding-left: 72px;
+                font-size: 24px;
+                color: var(--fg-dim);
+            }
+            ul.list li.sub::before {
+                content: "└";
+                left: 38px;
+                color: var(--fg-faint);
+            }
+            ul.list strong {
+                color: var(--cyan);
+                font-weight: 700;
+            }
+            ul.list em {
+                color: var(--orange);
+                font-style: normal;
+            }
+
+            .icode {
+                font-family: var(--font-mono);
+                font-size: 0.86em;
+                background: var(--panel);
+                color: var(--teal);
+                padding: 3px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--border);
+            }
+
+            /* === COLUMNS === */
+            .cols {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 36px;
+                flex: 1;
+                min-height: 0;
+                align-content: start;
+            }
+            .cols.c3 {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+            .col-card {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                padding: 32px 34px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .col-card h3 {
+                font-family: var(--font-mono);
+                font-size: 22px;
+                font-weight: 700;
+                color: var(--fg);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding-bottom: 12px;
+                border-bottom: 1px dashed var(--border);
+            }
+            .col-card.accent-blue h3 {
+                color: var(--blue);
+            }
+            .col-card.accent-cyan h3 {
+                color: var(--cyan);
+            }
+            .col-card.accent-green h3 {
+                color: var(--green);
+            }
+            .col-card.accent-orange h3 {
+                color: var(--orange);
+            }
+            .col-card.accent-purple h3 {
+                color: var(--purple);
+            }
+            .col-card.accent-teal h3 {
+                color: var(--teal);
+            }
+
+            /* === CODE BLOCKS === */
+            .codeblock {
+                background: #15161f;
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                overflow: hidden;
+                margin: 6px 0;
+            }
+            .codeblock .cb-bar {
+                background: var(--win-bar);
+                padding: 10px 18px;
+                font-family: var(--font-mono);
+                font-size: 15px;
+                color: var(--fg-faint);
+                border-bottom: 1px solid var(--border-soft);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .codeblock .cb-bar::before {
+                content: "";
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--green);
+            }
+            .codeblock pre {
+                padding: 22px 28px;
+                font-family: var(--font-mono);
+                font-size: 24px;
+                line-height: 1.65;
+                color: var(--fg);
+                white-space: pre;
+            }
+            .codeblock.sm pre {
+                font-size: 21px;
+                padding: 18px 24px;
+            }
+            .codeblock.xs pre {
+                font-size: 18px;
+                padding: 16px 22px;
+                line-height: 1.6;
+            }
+            .tok-kw {
+                color: var(--purple);
+            }
+            .tok-fn {
+                color: var(--blue);
+            }
+            .tok-str {
+                color: var(--green);
+            }
+            .tok-num {
+                color: var(--orange);
+            }
+            .tok-com {
+                color: var(--fg-faint);
+                font-style: italic;
+            }
+            .tok-pun {
+                color: var(--fg-dim);
+            }
+            .tok-out {
+                color: var(--teal);
+            }
+            .tok-op {
+                color: var(--red);
+            }
+
+            /* === NOTE / CALLOUT === */
+            .note {
+                margin-top: auto;
+                background: linear-gradient(
+                    90deg,
+                    rgba(122, 162, 247, 0.1),
+                    transparent
+                );
+                border-left: 4px solid var(--accent);
+                border-radius: 0 12px 12px 0;
+                padding: 22px 28px;
+                font-size: 24px;
+                line-height: 1.45;
+                color: var(--fg-dim);
+            }
+            .note b {
+                color: var(--cyan);
+            }
+            .note.warn {
+                border-left-color: var(--red);
+                background: linear-gradient(
+                    90deg,
+                    rgba(247, 118, 142, 0.12),
+                    transparent
+                );
+            }
+            .note.warn b {
+                color: var(--red);
+            }
+
+            /* === LEAD / SECTION DIVIDER === */
+            .slide.lead {
+                padding: 0;
+            }
+            .slide.lead .win {
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+                background: transparent;
+            }
+            .slide.lead .canvas {
+                padding: 0;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+            .slide.lead .canvas::before {
+                display: none;
+            }
+
+            .terminal {
+                width: 1240px;
+                max-width: 80%;
+                background: var(--win-bg);
+                border: 1px solid var(--border);
+                border-radius: 18px;
+                box-shadow: 0 50px 140px rgba(0, 0, 0, 0.6);
+                overflow: hidden;
+                text-align: left;
+            }
+            .terminal .titlebar {
+                height: 58px;
+                flex: none;
+            }
+            .terminal .tbody {
+                padding: 38px 48px 50px;
+                font-family: var(--font-mono);
+            }
+            .prompt {
+                font-size: 26px;
+                color: var(--green);
+                margin-bottom: 10px;
+            }
+            .prompt .path {
+                color: var(--blue);
+            }
+            .prompt .cmd {
+                color: var(--fg);
+            }
+            .term-out {
+                font-size: 22px;
+                color: var(--fg-faint);
+                margin-bottom: 26px;
+            }
+            .lead h1 {
+                font-family: var(--font-display);
+                font-weight: 800;
+                font-size: 86px;
+                line-height: 1;
+                letter-spacing: -0.025em;
+                color: var(--fg);
+                margin: 8px 0 6px;
+            }
+            .lead h1 .hl {
+                color: var(--accent);
+            }
+            .lead .by {
+                font-family: var(--font-mono);
+                font-size: 28px;
+                color: var(--cyan);
+            }
+            .lead .section-num {
+                font-family: var(--font-mono);
+                font-size: 22px;
+                color: var(--fg-faint);
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                margin-bottom: 16px;
+            }
+            .cursor {
+                display: inline-block;
+                width: 14px;
+                height: 30px;
+                background: var(--accent);
+                margin-left: 6px;
+                vertical-align: middle;
+                animation: blink 1.05s steps(2, start) infinite;
+            }
+            @keyframes blink {
+                50% {
+                    opacity: 0;
+                }
+            }
+            .lead .sectitle {
+                font-family: var(--font-display);
+                font-weight: 800;
+                font-size: 100px;
+                line-height: 1;
+                letter-spacing: -0.03em;
+                color: var(--fg);
+            }
+            .lead .sectitle .hl {
+                color: var(--accent);
+            }
+
+            /* === PROTOTYPE CHAIN DIAGRAM === */
+            .proto-diagram {
+                flex: 1;
+                min-height: 0;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .proto-tree {
+                display: grid;
+                grid-template-columns: 260px 340px 340px 200px;
+                grid-template-rows: auto auto auto;
+                gap: 24px 0;
+                align-items: center;
+                justify-items: center;
+                position: relative;
+                width: 100%;
+                padding: 0 40px;
+            }
+            .pbox {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 18px 24px;
+                font-family: var(--font-mono);
+                font-size: 20px;
+                text-align: center;
+                white-space: nowrap;
+            }
+            .pbox .pname {
+                font-weight: 700;
+                font-size: 24px;
+                margin-bottom: 8px;
+            }
+            .pbox .pprop {
+                color: var(--fg-faint);
+                font-size: 17px;
+                line-height: 1.6;
+            }
+            .pbox.b-orange {
+                border-color: rgba(255, 158, 100, 0.5);
+            }
+            .pbox.b-orange .pname {
+                color: var(--orange);
+            }
+            .pbox.b-blue {
+                border-color: rgba(122, 162, 247, 0.5);
+            }
+            .pbox.b-blue .pname {
+                color: var(--blue);
+            }
+            .pbox.b-teal {
+                border-color: rgba(115, 218, 202, 0.5);
+            }
+            .pbox.b-teal .pname {
+                color: var(--teal);
+            }
+            .pbox.b-purple {
+                border-color: rgba(187, 154, 247, 0.5);
+            }
+            .pbox.b-purple .pname {
+                color: var(--purple);
+            }
+            .pbox.b-null {
+                border-color: var(--border-soft);
+            }
+            .pbox.b-null .pname {
+                color: var(--fg-faint);
+            }
+            .proto-row {
+                display: flex;
+                align-items: center;
+                gap: 0;
+                width: 100%;
+            }
+            .proto-col {
+                display: flex;
+                flex-direction: column;
+                gap: 44px;
+                align-items: center;
+            }
+            .arr {
+                font-family: var(--font-mono);
+                color: var(--fg-faint);
+                font-size: 24px;
+                padding: 0 10px;
+            }
+            .arr.down {
+                writing-mode: vertical-lr;
+                transform: rotate(180deg);
+                padding: 8px 0;
+            }
+
+            /* === SPLIT LAYOUT (text + code side by side) === */
+            .split {
+                display: grid;
+                grid-template-columns: 1fr 1.1fr;
+                gap: 44px;
+                flex: 1;
+                min-height: 0;
+                align-items: start;
+            }
+
+            /* === ENTRANCE ANIMATIONS === */
+            .reveal {
+                opacity: 0;
+                transform: translateY(28px);
+                transition:
+                    opacity var(--dur) var(--ease),
+                    transform var(--dur) var(--ease);
+            }
+            .slide.visible .reveal {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .slide.visible .reveal:nth-child(1) {
+                transition-delay: 0.06s;
+            }
+            .slide.visible .reveal:nth-child(2) {
+                transition-delay: 0.13s;
+            }
+            .slide.visible .reveal:nth-child(3) {
+                transition-delay: 0.2s;
+            }
+            .slide.visible .reveal:nth-child(4) {
+                transition-delay: 0.27s;
+            }
+            .slide.visible .reveal:nth-child(5) {
+                transition-delay: 0.34s;
+            }
+            .slide.visible .reveal:nth-child(6) {
+                transition-delay: 0.41s;
+            }
+            .slide.visible .reveal:nth-child(7) {
+                transition-delay: 0.48s;
+            }
+            .slide.visible .reveal:nth-child(8) {
+                transition-delay: 0.55s;
+            }
+
+            /* === DECK CHROME === */
+            #progress {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 4px;
+                width: 0%;
+                background: linear-gradient(90deg, var(--accent), var(--cyan));
+                z-index: 1000;
+                transition: width 0.35s var(--ease);
+                box-shadow: 0 0 14px var(--accent);
+            }
+            .edit-hotzone {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 80px;
+                height: 80px;
+                z-index: 10000;
+                cursor: pointer;
+            }
+            .edit-toggle {
+                position: fixed;
+                top: 18px;
+                left: 18px;
+                z-index: 10001;
+                width: 46px;
+                height: 46px;
+                border-radius: 12px;
+                border: 1px solid var(--border);
+                background: var(--win-bar);
+                color: var(--fg);
+                font-size: 20px;
+                cursor: pointer;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
+            }
+            .edit-toggle.show,
+            .edit-toggle.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .edit-toggle.active {
+                background: var(--accent);
+                color: #0b0d17;
+                border-color: var(--accent);
+            }
+            .editing [contenteditable="true"] {
+                outline: 1px dashed var(--accent);
+                outline-offset: 4px;
+                border-radius: 4px;
+            }
+            #hint {
+                position: fixed;
+                bottom: 16px;
+                right: 18px;
+                z-index: 1000;
+                font-family: var(--font-mono);
+                font-size: 13px;
+                color: var(--fg-faint);
+                background: rgba(22, 22, 30, 0.7);
+                padding: 6px 12px;
+                border-radius: 8px;
+                border: 1px solid var(--border-soft);
+                transition: opacity 0.5s;
+                backdrop-filter: blur(6px);
+            }
+        </style>
+    </head>
+    <body>
+        <div id="progress"></div>
+        <div class="edit-hotzone"></div>
+        <button class="edit-toggle" id="editToggle" title="Edit mode (E)">
+            ✏️
+        </button>
+        <div id="hint">← → navigate · E edit · F fullscreen</div>
+
+        <div class="deck-viewport">
+            <main class="deck-stage" id="deckStage">
+                <!-- ===== 01 · TITLE / LEAD ===== -->
+                <section class="slide lead active">
+                    <div class="win">
+                        <div class="canvas">
+                            <div class="terminal reveal">
+                                <div class="titlebar">
+                                    <div class="dots">
+                                        <span class="r"></span
+                                        ><span class="y"></span
+                                        ><span class="g"></span>
+                                    </div>
+                                    <div class="tab">
+                                        ~/fullstack-training
+                                        <span style="color: var(--fg-faint)"
+                                            >— zsh</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="tbody">
+                                    <div class="prompt">
+                                        <span class="path">aaron@course</span>
+                                        <span class="cmd"
+                                            >$ ./start --lecture 02</span
+                                        >
+                                    </div>
+                                    <div class="term-out">
+                                        › statements · objects · prototypes ·
+                                        arrays
+                                    </div>
+                                    <div class="section-num">Lecture 02</div>
+                                    <h1>
+                                        Statements, Objects
+                                        <span class="hl">&amp; Arrays</span>
+                                    </h1>
+                                    <div class="by">
+                                        // JavaScript Fundamentals<span
+                                            class="cursor"
+                                        ></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="note warn reveal"
+                                style="
+                                    margin-top: 36px;
+                                    width: 1240px;
+                                    text-align: left;
+                                    font-size: 23px;
+                                "
+                            >
+                                🔴
+                                <b>Do NOT use AI to generate code.</b>
+                                Conditionals, loops, object operations — these
+                                are fundamental muscle memory. Write bugs
+                                yourself and debug them to build real intuition.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 02 · CONDITIONAL STATEMENTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">statements.js</div>
+                            <div class="breadcrumb">control flow</div>
+                        </div>
+                        <div class="canvas" style="padding: 44px 76px 28px">
+                            <div class="kicker reveal">
+                                deciding what to run
+                            </div>
+                            <h2
+                                class="title reveal"
+                                style="font-size: 60px; margin-bottom: 22px"
+                            >
+                                Conditional <span class="hl">statements</span>
+                            </h2>
+                            <div class="cols reveal">
+                                <div class="col-card accent-blue">
+                                    <h3>if / else</h3>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">if-else</div>
+                                        <pre><span class="tok-kw">if</span> <span class="tok-pun">(</span>condition<span class="tok-pun">) {</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span> <span class="tok-kw">else if</span> <span class="tok-pun">(</span>condition<span class="tok-pun">) {</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span> <span class="tok-kw">else</span> <span class="tok-pun">{</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span></pre>
+                                    </div>
+                                </div>
+                                <div class="col-card accent-cyan">
+                                    <h3>switch</h3>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">switch</div>
+                                        <pre><span class="tok-kw">switch</span> <span class="tok-pun">(</span>expression<span class="tok-pun">) {</span>
+  <span class="tok-kw">case</span> x<span class="tok-pun">:</span>
+    <span class="tok-com">// code block</span>
+    <span class="tok-kw">break</span><span class="tok-pun">;</span>
+  <span class="tok-kw">case</span> y<span class="tok-pun">:</span>
+    <span class="tok-com">// code block</span>
+    <span class="tok-kw">break</span><span class="tok-pun">;</span>
+  <span class="tok-kw">default</span><span class="tok-pun">:</span>
+    <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span></pre>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="note reveal" style="margin-top: 18px">
+                                Also: the
+                                <span
+                                    style="
+                                        color: var(--teal);
+                                        font-family: var(--font-mono);
+                                    "
+                                    >ternary</span
+                                >
+                                operator —
+                                <span
+                                    style="
+                                        font-family: var(--font-mono);
+                                        color: var(--fg);
+                                    "
+                                    >condition ? valueIfTrue :
+                                    valueIfFalse</span
+                                >
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">statements</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">02 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 03 · LOOPS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">statements.js</div>
+                            <div class="breadcrumb">iteration</div>
+                        </div>
+                        <div class="canvas" style="padding: 44px 76px 28px">
+                            <div class="kicker reveal">
+                                running code repeatedly
+                            </div>
+                            <h2
+                                class="title reveal"
+                                style="font-size: 60px; margin-bottom: 22px"
+                            >
+                                Loops &amp; <span class="hl">iteration</span>
+                            </h2>
+                            <div class="cols reveal">
+                                <div class="col-card accent-green">
+                                    <h3>for</h3>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">for loop</div>
+                                        <pre><span class="tok-kw">for</span> <span class="tok-pun">(</span>initialize<span class="tok-pun">;</span> test<span class="tok-pun">;</span> increment<span class="tok-pun">) {</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span></pre>
+                                    </div>
+                                </div>
+                                <div class="col-card accent-orange">
+                                    <h3>while / do…while</h3>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">while</div>
+                                        <pre><span class="tok-kw">while</span> <span class="tok-pun">(</span>condition<span class="tok-pun">) {</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">do</span> <span class="tok-pun">{</span>
+  <span class="tok-com">// code block</span>
+<span class="tok-pun">}</span> <span class="tok-kw">while</span> <span class="tok-pun">(</span>condition<span class="tok-pun">);</span></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">statements</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">03 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 04 · JUMP STATEMENTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">statements.js</div>
+                            <div class="breadcrumb">escaping control flow</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">
+                                changing execution path
+                            </div>
+                            <h2 class="title reveal">
+                                Jump <span class="hl">statements</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode">break</span> — exit a
+                                    loop or switch
+                                </li>
+                                <li>
+                                    <span class="icode">continue</span> — skip
+                                    to the next iteration
+                                </li>
+                                <li>
+                                    <span class="icode">return</span> — exit a
+                                    function (with optional value)
+                                </li>
+                                <li>
+                                    <span class="icode">throw</span> — raise an
+                                    exception
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">statements</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">04 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 05 · MISCELLANEOUS STATEMENTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">strict.js</div>
+                            <div class="breadcrumb">
+                                debugger &amp; strict mode
+                            </div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">
+                                good practices &amp; debugging
+                            </div>
+                            <h2 class="title reveal" style="font-size: 60px">
+                                Miscellaneous <span class="hl">statements</span>
+                            </h2>
+                            <ul class="list reveal" style="gap: 13px">
+                                <li>
+                                    <span class="icode">debugger</span> — pauses
+                                    execution in browser devtools
+                                </li>
+                                <li><strong>use strict</strong></li>
+                                <li class="sub">
+                                    applies to entire script or function —
+                                    <em>not a block</em>
+                                </li>
+                                <li class="sub">
+                                    all variables must be declared
+                                </li>
+                                <li class="sub">
+                                    functions invoked with
+                                    <span class="icode">call</span>/<span
+                                        class="icode"
+                                        >apply</span
+                                    >
+                                    must have a valid
+                                    <span class="icode">this</span>
+                                </li>
+                                <li class="sub">
+                                    no duplicate property names in object
+                                    literals
+                                </li>
+                                <li class="sub">
+                                    <span class="icode">arguments</span> object
+                                    is not linked with parameters
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">strict</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">05 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 06 · SECTION: OBJECTS ===== -->
+                <section class="slide lead">
+                    <div class="win">
+                        <div class="canvas">
+                            <div class="reveal">
+                                <div class="section-num">Part I</div>
+                                <div class="sectitle">
+                                    Objects &amp;
+                                    <span class="hl">Prototypes</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 07 · OBJECTS — CREATING ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">creating objects</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">key-value stores</div>
+                            <h2 class="title reveal">
+                                <span class="hl">Objects</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>creating objects</li>
+                                <li class="sub">
+                                    object <strong>literals</strong> —
+                                    <span class="icode">{ key: value }</span>
+                                </li>
+                                <li class="sub">
+                                    <span class="icode">new</span> keyword —
+                                    <span class="icode">new Object()</span>
+                                </li>
+                                <li class="sub">
+                                    <span class="icode"
+                                        >Object.create(proto)</span
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">07 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 08 · PROTOTYPES DEFINITION ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">prototypes.md</div>
+                            <div class="breadcrumb">what is a prototype?</div>
+                        </div>
+                        <div
+                            class="canvas"
+                            style="
+                                align-items: center;
+                                justify-content: center;
+                                text-align: center;
+                            "
+                        >
+                            <div
+                                class="kicker reveal"
+                                style="justify-content: center"
+                            >
+                                the easy version
+                            </div>
+                            <blockquote
+                                class="reveal"
+                                style="
+                                    font-family: var(--font-display);
+                                    font-size: 52px;
+                                    font-weight: 700;
+                                    line-height: 1.35;
+                                    max-width: 1400px;
+                                    color: var(--fg);
+                                    border-left: none;
+                                    padding: 0;
+                                    background: none;
+                                "
+                            >
+                                Every object has a
+                                <span style="color: var(--accent)"
+                                    >second object</span
+                                >
+                                (or null) associated with it, known as a
+                                <span style="color: var(--cyan)">prototype</span
+                                >. The first object
+                                <span style="color: var(--green)"
+                                    >inherits properties</span
+                                >
+                                from the prototype.
+                            </blockquote>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">prototypes</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">08 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 09 · PROTOTYPE CHAIN DIAGRAM ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">prototype-chain.diagram</div>
+                            <div class="breadcrumb">
+                                inheritance via [[Prototype]]
+                            </div>
+                        </div>
+                        <div class="canvas" style="padding: 44px 64px 28px">
+                            <div class="kicker reveal">
+                                three chains, one shared root
+                            </div>
+
+                            <!-- SVG diagram — drawn at a fixed coordinate space, scaled by viewBox -->
+                            <div
+                                class="reveal"
+                                style="
+                                    flex: 1;
+                                    min-height: 0;
+                                    display: flex;
+                                    align-items: center;
+                                "
+                            >
+                                <svg
+                                    viewBox="0 0 1590 430"
+                                    width="100%"
+                                    height="100%"
+                                    preserveAspectRatio="xMidYMid meet"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    style="
+                                        overflow: visible;
+                                        font-family:
+                                            &quot;JetBrains Mono&quot;,
+                                            monospace;
+                                    "
+                                >
+                                    <defs>
+                                        <!-- single arrowhead marker -->
+                                        <marker
+                                            id="ah"
+                                            markerWidth="10"
+                                            markerHeight="7"
+                                            refX="9"
+                                            refY="3.5"
+                                            orient="auto"
+                                        >
+                                            <polygon
+                                                points="0 0,10 3.5,0 7"
+                                                fill="#565f89"
+                                            />
+                                        </marker>
+                                    </defs>
+
+                                    <!-- ── BOXES ─────────────────────────────────────────── -->
+
+                                    <!-- Row 1: Array instance -->
+                                    <rect
+                                        x="20"
+                                        y="30"
+                                        width="190"
+                                        height="78"
+                                        rx="10"
+                                        fill="#1f2335"
+                                        stroke="#ff9e64"
+                                        stroke-width="2"
+                                    />
+                                    <text
+                                        x="115"
+                                        y="64"
+                                        text-anchor="middle"
+                                        fill="#ff9e64"
+                                        font-size="24"
+                                        font-weight="700"
+                                    >
+                                        Array
+                                    </text>
+                                    <text
+                                        x="115"
+                                        y="90"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        [ ]
+                                    </text>
+
+                                    <!-- Row 1: Array.prototype -->
+                                    <rect
+                                        x="290"
+                                        y="30"
+                                        width="330"
+                                        height="78"
+                                        rx="10"
+                                        fill="#1f2335"
+                                        stroke="#7aa2f7"
+                                        stroke-width="2"
+                                    />
+                                    <text
+                                        x="455"
+                                        y="62"
+                                        text-anchor="middle"
+                                        fill="#7aa2f7"
+                                        font-size="23"
+                                        font-weight="700"
+                                    >
+                                        Array.prototype
+                                    </text>
+                                    <text
+                                        x="455"
+                                        y="87"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        .map() .filter() .length …
+                                    </text>
+
+                                    <!-- Row 2: Date instance -->
+                                    <rect
+                                        x="20"
+                                        y="195"
+                                        width="190"
+                                        height="78"
+                                        rx="10"
+                                        fill="#1f2335"
+                                        stroke="#ff9e64"
+                                        stroke-width="2"
+                                    />
+                                    <text
+                                        x="115"
+                                        y="229"
+                                        text-anchor="middle"
+                                        fill="#ff9e64"
+                                        font-size="24"
+                                        font-weight="700"
+                                    >
+                                        Date
+                                    </text>
+                                    <text
+                                        x="115"
+                                        y="255"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        new Date()
+                                    </text>
+
+                                    <!-- Row 2: Date.prototype -->
+                                    <rect
+                                        x="290"
+                                        y="195"
+                                        width="330"
+                                        height="78"
+                                        rx="10"
+                                        fill="#1f2335"
+                                        stroke="#bb9af7"
+                                        stroke-width="2"
+                                    />
+                                    <text
+                                        x="455"
+                                        y="227"
+                                        text-anchor="middle"
+                                        fill="#bb9af7"
+                                        font-size="23"
+                                        font-weight="700"
+                                    >
+                                        Date.prototype
+                                    </text>
+                                    <text
+                                        x="455"
+                                        y="252"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        .getFullYear() .toLocaleString() …
+                                    </text>
+
+                                    <!-- Row 3: Object literal -->
+                                    <rect
+                                        x="20"
+                                        y="355"
+                                        width="190"
+                                        height="78"
+                                        rx="10"
+                                        fill="#1f2335"
+                                        stroke="#ff9e64"
+                                        stroke-width="2"
+                                    />
+                                    <text
+                                        x="115"
+                                        y="389"
+                                        text-anchor="middle"
+                                        fill="#ff9e64"
+                                        font-size="24"
+                                        font-weight="700"
+                                    >
+                                        Object { }
+                                    </text>
+                                    <text
+                                        x="115"
+                                        y="415"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        literal
+                                    </text>
+
+                                    <!-- RIGHT: Object.prototype (shared — tall box, centered vertically) -->
+                                    <rect
+                                        x="840"
+                                        y="155"
+                                        width="390"
+                                        height="115"
+                                        rx="12"
+                                        fill="#1f2335"
+                                        stroke="#73daca"
+                                        stroke-width="2.5"
+                                    />
+                                    <text
+                                        x="1035"
+                                        y="199"
+                                        text-anchor="middle"
+                                        fill="#73daca"
+                                        font-size="24"
+                                        font-weight="700"
+                                    >
+                                        Object.prototype
+                                    </text>
+                                    <text
+                                        x="1035"
+                                        y="226"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="16"
+                                    >
+                                        .toString() .hasOwnProperty() …
+                                    </text>
+                                    <text
+                                        x="1035"
+                                        y="252"
+                                        text-anchor="middle"
+                                        fill="#2a2e45"
+                                        font-size="14"
+                                    >
+                                        ▲ shared by every object
+                                    </text>
+
+                                    <!-- FAR RIGHT: null -->
+                                    <rect
+                                        x="1340"
+                                        y="186"
+                                        width="130"
+                                        height="54"
+                                        rx="10"
+                                        fill="#16161e"
+                                        stroke="#2a2e45"
+                                        stroke-width="1.5"
+                                    />
+                                    <text
+                                        x="1405"
+                                        y="221"
+                                        text-anchor="middle"
+                                        fill="#565f89"
+                                        font-size="24"
+                                        font-weight="700"
+                                    >
+                                        null
+                                    </text>
+
+                                    <!-- ── CONNECTOR LINES ─────────────────────────────── -->
+
+                                    <!-- 1. Array → Array.prototype -->
+                                    <line
+                                        x1="210"
+                                        y1="69"
+                                        x2="286"
+                                        y2="69"
+                                        stroke="#7aa2f7"
+                                        stroke-width="2"
+                                        marker-end="url(#ah)"
+                                    />
+
+                                    <!-- 2. Date → Date.prototype -->
+                                    <line
+                                        x1="210"
+                                        y1="234"
+                                        x2="286"
+                                        y2="234"
+                                        stroke="#bb9af7"
+                                        stroke-width="2"
+                                        marker-end="url(#ah)"
+                                    />
+
+                                    <!-- 3. Array.prototype → Object.prototype (elbow: right → down → right) -->
+                                    <path
+                                        d="M620,69 L730,69 L730,208 L836,208"
+                                        fill="none"
+                                        stroke="#7aa2f7"
+                                        stroke-width="2"
+                                        stroke-dasharray="9 5"
+                                        marker-end="url(#ah)"
+                                    />
+
+                                    <!-- 4. Date.prototype → Object.prototype (elbow: right → slight up → right) -->
+                                    <path
+                                        d="M620,234 L730,234 L730,235 L836,235"
+                                        fill="none"
+                                        stroke="#bb9af7"
+                                        stroke-width="2"
+                                        stroke-dasharray="9 5"
+                                        marker-end="url(#ah)"
+                                    />
+
+                                    <!-- 5. Object{} → Object.prototype (elbow: right → up → right) -->
+                                    <path
+                                        d="M210,394 L730,394 L730,262 L836,262"
+                                        fill="none"
+                                        stroke="#ff9e64"
+                                        stroke-width="2"
+                                        stroke-dasharray="9 5"
+                                        marker-end="url(#ah)"
+                                    />
+
+                                    <!-- 6. Object.prototype → null -->
+                                    <line
+                                        x1="1230"
+                                        y1="213"
+                                        x2="1336"
+                                        y2="213"
+                                        stroke="#73daca"
+                                        stroke-width="2"
+                                        marker-end="url(#ah)"
+                                    />
+                                </svg>
+                            </div>
+
+                            <div
+                                class="note reveal"
+                                style="font-size: 22px; margin-top: 4px"
+                            >
+                                Property lookups <b>climb the chain</b> — if a
+                                property isn't on the object itself, JS checks
+                                its prototype, then that prototype's prototype,
+                                until <b>null</b> is reached.
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">prototypes</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">09 / 22 · Diagram</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 10 · QUERYING AND SETTING PROPERTIES ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">reading &amp; writing</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">accessing values</div>
+                            <h2 class="title reveal" style="font-size: 58px">
+                                Querying &amp; setting
+                                <span class="hl">properties</span>
+                            </h2>
+                            <div class="split reveal">
+                                <div>
+                                    <ul
+                                        class="list"
+                                        style="gap: 12px; margin-bottom: 20px"
+                                    >
+                                        <li>
+                                            <strong>dot notation</strong> —
+                                            <span class="icode">obj.prop</span>
+                                        </li>
+                                        <li>
+                                            <strong>bracket notation</strong> —
+                                            <span class="icode"
+                                                >obj['prop']</span
+                                            >
+                                        </li>
+                                    </ul>
+                                    <div
+                                        style="
+                                            font-family: var(--font-mono);
+                                            font-size: 22px;
+                                            color: var(--fg-faint);
+                                            margin-bottom: 10px;
+                                            text-transform: uppercase;
+                                            letter-spacing: 0.1em;
+                                        "
+                                    >
+                                        property access errors
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">
+                                            optional-chaining.js
+                                        </div>
+                                        <pre><span class="tok-com">// error if user.address is undefined</span>
+addressLine1 <span class="tok-pun">=</span> user<span class="tok-pun">.</span>address<span class="tok-pun">.</span>line1<span class="tok-pun">;</span>
+
+<span class="tok-com">// safe — short-circuit</span>
+addressLine1 <span class="tok-pun">=</span> user<span class="tok-pun">.</span>address
+    <span class="tok-pun">&amp;&amp;</span> user<span class="tok-pun">.</span>address<span class="tok-pun">.</span>line1<span class="tok-pun">;</span>
+
+<span class="tok-com">// safe — optional chaining (ES2020)</span>
+addressLine1 <span class="tok-pun">=</span> user<span class="tok-pun">.</span>address<span class="tok-pun">?.</span>line1<span class="tok-pun">;</span></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">10 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 11 · DELETING PROPERTIES ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">removing &amp; locking</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">removing properties</div>
+                            <h2 class="title reveal">
+                                Deleting <span class="hl">properties</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode">delete</span> operator
+                                </li>
+                                <li>
+                                    <span class="icode">Object.seal()</span> —
+                                    properties can be changed but
+                                    <em>not added or deleted</em>
+                                </li>
+                                <li>
+                                    <span class="icode">Object.freeze()</span> —
+                                    <em>make real constant objects</em> (no
+                                    changes at all)
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">11 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 12 · ENUMERATING PROPERTIES ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">
+                                listing keys &amp; values
+                            </div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">
+                                iterating over an object
+                            </div>
+                            <h2 class="title reveal">
+                                Enumerating <span class="hl">properties</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode">for...in</span> —
+                                    iterates over enumerable properties
+                                    including inherited ones
+                                </li>
+                                <li>
+                                    <span class="icode">Object.keys(obj)</span>
+                                    — own enumerable <strong>keys</strong>
+                                </li>
+                                <li>
+                                    <span class="icode"
+                                        >Object.values(obj)</span
+                                    >
+                                    — own enumerable <strong>values</strong>
+                                </li>
+                                <li>
+                                    <span class="icode"
+                                        >Object.entries(obj)</span
+                                    >
+                                    — own enumerable
+                                    <strong>[key, value]</strong> pairs
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">12 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 13 · GETTERS AND SETTERS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">computed properties</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">property accessors</div>
+                            <h2 class="title reveal">
+                                Getters &amp; <span class="hl">setters</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode">get</span> and
+                                    <span class="icode">set</span> keywords —
+                                    defined in object/class body
+                                </li>
+                                <li>
+                                    <span class="icode"
+                                        >Object.defineProperty(obj, prop,
+                                        descriptor)</span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="icode"
+                                        >Object.defineProperties(obj,
+                                        descriptors)</span
+                                    >
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">13 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 14 · SERIALIZING OBJECTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">objects.js</div>
+                            <div class="breadcrumb">to string and back</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">JSON round-trip</div>
+                            <h2 class="title reveal">
+                                Serializing <span class="hl">objects</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode"
+                                        >JSON.stringify(value)</span
+                                    >
+                                    — object → JSON string
+                                </li>
+                                <li>
+                                    <span class="icode">JSON.parse(text)</span>
+                                    — JSON string → object
+                                </li>
+                            </ul>
+                            <div
+                                class="codeblock reveal"
+                                style="max-width: 900px; margin-top: 16px"
+                            >
+                                <div class="cb-bar">json-roundtrip.js</div>
+                                <pre><span class="tok-kw">const</span> obj  <span class="tok-pun">=</span> <span class="tok-pun">{</span> name<span class="tok-pun">:</span> <span class="tok-str">'Aaron'</span><span class="tok-pun">,</span> age<span class="tok-pun">:</span> <span class="tok-num">30</span> <span class="tok-pun">};</span>
+<span class="tok-kw">const</span> json <span class="tok-pun">=</span> <span class="tok-fn">JSON</span><span class="tok-pun">.</span><span class="tok-fn">stringify</span><span class="tok-pun">(</span>obj<span class="tok-pun">);</span>  <span class="tok-com">// '{"name":"Aaron","age":30}'</span>
+<span class="tok-kw">const</span> back <span class="tok-pun">=</span> <span class="tok-fn">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>json<span class="tok-pun">);</span>      <span class="tok-com">// { name: 'Aaron', age: 30 }</span></pre>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">objects</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">14 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 15 · SECTION: ARRAYS ===== -->
+                <section class="slide lead">
+                    <div class="win">
+                        <div class="canvas">
+                            <div class="reveal">
+                                <div class="section-num">Part II</div>
+                                <div class="sectitle">
+                                    <span class="hl">Arrays</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 16 · ARRAYS OVERVIEW ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">ordered collections</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">
+                                ordered, zero-indexed
+                            </div>
+                            <h2 class="title reveal">
+                                <span class="hl">Arrays</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>creating arrays</li>
+                                <li>accessing array elements</li>
+                                <li>adding and removing elements</li>
+                                <li>iterating over arrays</li>
+                                <li>searching arrays</li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">16 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 17 · CREATING ARRAYS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">four ways to create</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">creation patterns</div>
+                            <h2 class="title reveal">
+                                Creating <span class="hl">arrays</span>
+                            </h2>
+                            <ul class="list reveal" style="gap: 14px">
+                                <li>
+                                    <strong>array literals</strong> —
+                                    <span class="icode">[1, 2, 3]</span>
+                                </li>
+                                <li><span class="icode">new Array()</span></li>
+                                <li class="sub">
+                                    <span class="icode">new Array()</span> →
+                                    empty array
+                                </li>
+                                <li class="sub">
+                                    <span class="icode">new Array(num)</span> →
+                                    sparse array of length <em>num</em>
+                                </li>
+                                <li class="sub">
+                                    <span class="icode"
+                                        >new Array(a, b, c)</span
+                                    >
+                                    → array with those elements
+                                </li>
+                                <li>
+                                    <span class="icode">Array.of(a, b, c)</span>
+                                    — always creates elements, never sparse
+                                </li>
+                                <li>
+                                    <span class="icode"
+                                        >Array.from(iterable)</span
+                                    >
+                                    — from any iterable or array-like
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">17 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 18 · ACCESSING ARRAY ELEMENTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">reading elements</div>
+                        </div>
+                        <div class="canvas" style="padding: 48px 76px 28px">
+                            <div class="kicker reveal">
+                                bracket notation + quirks
+                            </div>
+                            <h2
+                                class="title reveal"
+                                style="font-size: 58px; margin-bottom: 20px"
+                            >
+                                Accessing array <span class="hl">elements</span>
+                            </h2>
+                            <div class="split reveal">
+                                <div>
+                                    <ul class="list" style="gap: 12px">
+                                        <li>
+                                            <span class="icode"
+                                                >arr[index]</span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >arr.length</span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >arr[arr.length - 1]</span
+                                            >
+                                            — last item
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >arr[index] = value</span
+                                            >
+                                            — set
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">
+                                            array-quirks.js
+                                        </div>
+                                        <pre><span class="tok-kw">var</span> arr <span class="tok-pun">=</span> <span class="tok-pun">[</span><span class="tok-num">1</span><span class="tok-pun">,</span> <span class="tok-num">2</span><span class="tok-pun">,</span> <span class="tok-num">3</span><span class="tok-pun">];</span>
+arr<span class="tok-pun">[</span><span class="tok-num">-1</span><span class="tok-pun">]</span> <span class="tok-pun">=</span> <span class="tok-num">10</span><span class="tok-pun">;</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>arr<span class="tok-pun">);</span> <span class="tok-com">// [1, 2, 3, -1: 10]</span>
+
+arr<span class="tok-pun">[</span><span class="tok-str">'1'</span><span class="tok-pun">]</span> <span class="tok-pun">==</span> arr<span class="tok-pun">[</span><span class="tok-num">1</span><span class="tok-pun">];</span>   <span class="tok-com">// true</span>
+arr<span class="tok-pun">[</span><span class="tok-num">1.0</span><span class="tok-pun">]</span> <span class="tok-pun">==</span> arr<span class="tok-pun">[</span><span class="tok-num">1</span><span class="tok-pun">];</span>   <span class="tok-com">// true</span></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">18 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 19 · ARRAY LENGTH ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">
+                                writable length property
+                            </div>
+                        </div>
+                        <div class="canvas" style="padding: 48px 76px 28px">
+                            <div class="kicker reveal">length is writable!</div>
+                            <h2
+                                class="title reveal"
+                                style="font-size: 60px; margin-bottom: 20px"
+                            >
+                                Array <span class="hl">length</span>
+                            </h2>
+                            <div class="split reveal">
+                                <div>
+                                    <ul class="list" style="gap: 12px">
+                                        <li>
+                                            <span class="icode"
+                                                >arr.length</span
+                                            >
+                                            — read it
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >arr.length = 0</span
+                                            >
+                                            — <em>clears</em> the array
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >arr.length = 10</span
+                                            >
+                                            — <em>extends</em> with empties
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <div class="codeblock sm">
+                                        <div class="cb-bar">length.js</div>
+                                        <pre><span class="tok-kw">var</span> arr <span class="tok-pun">=</span> <span class="tok-pun">[</span><span class="tok-num">1</span><span class="tok-pun">,</span><span class="tok-num">2</span><span class="tok-pun">,</span><span class="tok-num">3</span><span class="tok-pun">,</span><span class="tok-num">4</span><span class="tok-pun">,</span><span class="tok-num">5</span><span class="tok-pun">];</span>
+
+arr<span class="tok-pun">.</span>length <span class="tok-pun">=</span> <span class="tok-num">3</span><span class="tok-pun">;</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>arr<span class="tok-pun">);</span> <span class="tok-com">// [1, 2, 3]</span>
+
+arr<span class="tok-pun">.</span>length <span class="tok-pun">=</span> <span class="tok-num">0</span><span class="tok-pun">;</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>arr<span class="tok-pun">);</span> <span class="tok-com">// []</span>
+
+arr<span class="tok-pun">.</span>length <span class="tok-pun">=</span> <span class="tok-num">10</span><span class="tok-pun">;</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>arr<span class="tok-pun">);</span> <span class="tok-com">// [empty × 10]</span></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">19 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 20 · ADDING AND REMOVING ELEMENTS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">mutating</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">mutation methods</div>
+                            <h2 class="title reveal" style="font-size: 58px">
+                                Adding &amp; removing
+                                <span class="hl">elements</span>
+                            </h2>
+                            <div class="cols reveal">
+                                <div class="col-card accent-green">
+                                    <h3>➕ add</h3>
+                                    <ul class="list">
+                                        <li>
+                                            <span class="icode">push()</span> —
+                                            end
+                                        </li>
+                                        <li>
+                                            <span class="icode">unshift()</span>
+                                            — beginning
+                                        </li>
+                                        <li>
+                                            <span class="icode">concat()</span>
+                                            — merge, returns new
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >splice(i, 0, ...items)</span
+                                            >
+                                            — insert at i
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div
+                                    class="col-card accent-red"
+                                    style="
+                                        border-color: rgba(247, 118, 142, 0.5);
+                                    "
+                                >
+                                    <h3 style="color: var(--red)">➖ remove</h3>
+                                    <ul class="list">
+                                        <li>
+                                            <span class="icode">pop()</span> —
+                                            end
+                                        </li>
+                                        <li>
+                                            <span class="icode">shift()</span> —
+                                            beginning
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >slice(start, end)</span
+                                            >
+                                            — copy range
+                                        </li>
+                                        <li>
+                                            <span class="icode"
+                                                >splice(i, n)</span
+                                            >
+                                            — remove n at i
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">20 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 21 · ITERATING OVER ARRAYS ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">traversal patterns</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">
+                                walking through every element
+                            </div>
+                            <h2 class="title reveal">
+                                Iterating over <span class="hl">arrays</span>
+                            </h2>
+                            <ul class="list reveal">
+                                <li>
+                                    <span class="icode">for...in</span> —
+                                    iterates enumerable keys (use with caution
+                                    on arrays)
+                                </li>
+                                <li>
+                                    <span class="icode">for...of</span> —
+                                    iterates values directly (preferred)
+                                </li>
+                                <li>
+                                    <span class="icode">forEach(fn)</span> —
+                                    callback per element, no return value
+                                </li>
+                                <li>
+                                    <span class="icode">map()</span> — transform
+                                    each element → new array
+                                </li>
+                                <li>
+                                    <span class="icode">filter()</span> — keep
+                                    elements passing a test → new array
+                                </li>
+                                <li>
+                                    <span class="icode">reduce()</span> —
+                                    accumulate to a single value
+                                </li>
+                            </ul>
+                            <div class="note reveal">
+                                <b>map / filter / reduce</b> are introduced in
+                                ES6 and are the functional-programming idioms
+                                you'll see everywhere.
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">21 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== 22 · MULTI-DIMENSIONAL ARRAYS + CLOSING ===== -->
+                <section class="slide">
+                    <div class="win">
+                        <div class="titlebar">
+                            <div class="dots">
+                                <span class="r"></span><span class="y"></span
+                                ><span class="g"></span>
+                            </div>
+                            <div class="tab">arrays.js</div>
+                            <div class="breadcrumb">arrays of arrays</div>
+                        </div>
+                        <div class="canvas">
+                            <div class="kicker reveal">nesting arrays</div>
+                            <h2 class="title reveal" style="font-size: 60px">
+                                Multi-dimensional <span class="hl">arrays</span>
+                            </h2>
+                            <ul class="list reveal" style="margin-bottom: 18px">
+                                <li>
+                                    <span class="icode">arr[row][column]</span>
+                                </li>
+                            </ul>
+                            <div class="codeblock reveal">
+                                <div class="cb-bar">2d-array.js</div>
+                                <pre><span class="tok-kw">var</span> arr <span class="tok-pun">=</span> <span class="tok-pun">[</span>
+  <span class="tok-pun">[</span><span class="tok-num">1</span><span class="tok-pun">,</span> <span class="tok-num">2</span><span class="tok-pun">,</span> <span class="tok-num">3</span><span class="tok-pun">],</span>
+  <span class="tok-pun">[</span><span class="tok-num">4</span><span class="tok-pun">,</span> <span class="tok-num">5</span><span class="tok-pun">,</span> <span class="tok-num">6</span><span class="tok-pun">]</span>
+<span class="tok-pun">];</span>
+
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>arr<span class="tok-pun">[</span><span class="tok-num">0</span><span class="tok-pun">][</span><span class="tok-num">1</span><span class="tok-pun">]);</span> <span class="tok-com">// 2</span></pre>
+                            </div>
+                        </div>
+                        <div class="statusbar">
+                            <div class="seg branch">⎇ main</div>
+                            <div class="seg">arrays</div>
+                            <div class="spacer"></div>
+                            <div class="seg right">22 / 22 · JavaScript</div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <script>
+            /* === SLIDE PRESENTATION CONTROLLER === */
+            class SlidePresentation {
+                constructor() {
+                    this.slides = Array.from(
+                        document.querySelectorAll(".slide"),
+                    );
+                    this.stage = document.getElementById("deckStage");
+                    this.progress = document.getElementById("progress");
+                    this.current = 0;
+                    this.wheelLock = false;
+                    this.setupStageScale();
+                    this.setupKeyboardNav();
+                    this.setupTouchNav();
+                    this.setupWheelNav();
+                    const fromHash = parseInt(
+                        location.hash.replace("#", ""),
+                        10,
+                    );
+                    this.show(Number.isFinite(fromHash) ? fromHash - 1 : 0);
+                    setTimeout(() => {
+                        const h = document.getElementById("hint");
+                        if (h) h.style.opacity = "0";
+                    }, 4200);
+                }
+                setupStageScale() {
+                    const scale = () => {
+                        const f = Math.min(
+                            window.innerWidth / 1920,
+                            window.innerHeight / 1080,
+                        );
+                        const x = (window.innerWidth - 1920 * f) / 2;
+                        const y = (window.innerHeight - 1080 * f) / 2;
+                        this.stage.style.transform = `translate(${x}px,${y}px) scale(${f})`;
+                    };
+                    scale();
+                    window.addEventListener("resize", scale);
+                }
+                setupKeyboardNav() {
+                    document.addEventListener("keydown", (e) => {
+                        if (
+                            e.target.getAttribute &&
+                            e.target.getAttribute("contenteditable") === "true"
+                        )
+                            return;
+                        switch (e.key) {
+                            case "ArrowRight":
+                            case "ArrowDown":
+                            case " ":
+                            case "PageDown":
+                                e.preventDefault();
+                                this.next();
+                                break;
+                            case "ArrowLeft":
+                            case "ArrowUp":
+                            case "PageUp":
+                                e.preventDefault();
+                                this.prev();
+                                break;
+                            case "Home":
+                                e.preventDefault();
+                                this.show(0);
+                                break;
+                            case "End":
+                                e.preventDefault();
+                                this.show(this.slides.length - 1);
+                                break;
+                            case "f":
+                            case "F":
+                                if (!document.fullscreenElement)
+                                    document.documentElement.requestFullscreen();
+                                else document.exitFullscreen();
+                                break;
+                        }
+                    });
+                }
+                setupTouchNav() {
+                    let x0 = null,
+                        y0 = null;
+                    const v = document.querySelector(".deck-viewport");
+                    v.addEventListener(
+                        "touchstart",
+                        (e) => {
+                            x0 = e.touches[0].clientX;
+                            y0 = e.touches[0].clientY;
+                        },
+                        { passive: true },
+                    );
+                    v.addEventListener(
+                        "touchend",
+                        (e) => {
+                            if (x0 === null) return;
+                            const dx = e.changedTouches[0].clientX - x0;
+                            const dy = e.changedTouches[0].clientY - y0;
+                            if (
+                                Math.abs(dx) > 50 &&
+                                Math.abs(dx) > Math.abs(dy)
+                            )
+                                dx < 0 ? this.next() : this.prev();
+                            x0 = y0 = null;
+                        },
+                        { passive: true },
+                    );
+                }
+                setupWheelNav() {
+                    window.addEventListener(
+                        "wheel",
+                        (e) => {
+                            if (this.wheelLock || Math.abs(e.deltaY) < 24)
+                                return;
+                            this.wheelLock = true;
+                            e.deltaY > 0 ? this.next() : this.prev();
+                            setTimeout(() => {
+                                this.wheelLock = false;
+                            }, 650);
+                        },
+                        { passive: true },
+                    );
+                }
+                next() {
+                    this.show(this.current + 1);
+                }
+                prev() {
+                    this.show(this.current - 1);
+                }
+                show(i) {
+                    this.current = Math.max(
+                        0,
+                        Math.min(i, this.slides.length - 1),
+                    );
+                    this.slides.forEach((s, idx) => {
+                        s.classList.toggle("active", idx === this.current);
+                        s.classList.toggle("visible", idx === this.current);
+                    });
+                    this.progress.style.width =
+                        ((this.current + 1) / this.slides.length) * 100 + "%";
+                    history.replaceState(null, "", "#" + (this.current + 1));
+                }
+            }
+
+            /* === INLINE EDITOR === */
+            class InlineEditor {
+                constructor() {
+                    this.isActive = false;
+                    this.key = "lecture2-slides-edits";
+                    this.targets = document.querySelectorAll(
+                        "h1, h2, h3, p, li, .tab, .mode, .prompt, .term-out, .by, .note, .kicker, blockquote, .pprop, .pname",
+                    );
+                    this.restore();
+                }
+                toggleEditMode() {
+                    this.isActive = !this.isActive;
+                    document.body.classList.toggle("editing", this.isActive);
+                    document
+                        .getElementById("editToggle")
+                        .classList.toggle("active", this.isActive);
+                    this.targets.forEach((t) =>
+                        t.setAttribute("contenteditable", this.isActive),
+                    );
+                    if (!this.isActive) this.save();
+                }
+                save() {
+                    const data = {};
+                    this.targets.forEach((t, i) => (data[i] = t.innerHTML));
+                    localStorage.setItem(this.key, JSON.stringify(data));
+                }
+                restore() {
+                    const raw = localStorage.getItem(this.key);
+                    if (!raw) return;
+                    try {
+                        const d = JSON.parse(raw);
+                        this.targets.forEach((t, i) => {
+                            if (d[i] !== undefined) t.innerHTML = d[i];
+                        });
+                    } catch (e) {}
+                }
+                download() {
+                    const blob = new Blob(
+                        [
+                            "<!DOCTYPE html>\n" +
+                                document.documentElement.outerHTML,
+                        ],
+                        { type: "text/html" },
+                    );
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "lecture2.html";
+                    a.click();
+                }
+            }
+
+            const deck = new SlidePresentation();
+            const editor = new InlineEditor();
+
+            const hotzone = document.querySelector(".edit-hotzone");
+            const editToggle = document.getElementById("editToggle");
+            let hideTimeout = null;
+            editToggle.addEventListener("click", () => editor.toggleEditMode());
+            hotzone.addEventListener("mouseenter", () => {
+                clearTimeout(hideTimeout);
+                editToggle.classList.add("show");
+            });
+            hotzone.addEventListener("mouseleave", () => {
+                hideTimeout = setTimeout(() => {
+                    if (!editor.isActive) editToggle.classList.remove("show");
+                }, 400);
+            });
+            editToggle.addEventListener("mouseenter", () =>
+                clearTimeout(hideTimeout),
+            );
+            editToggle.addEventListener("mouseleave", () => {
+                hideTimeout = setTimeout(() => {
+                    if (!editor.isActive) editToggle.classList.remove("show");
+                }, 400);
+            });
+            hotzone.addEventListener("click", () => editor.toggleEditMode());
+            document.addEventListener("keydown", (e) => {
+                if (
+                    (e.key === "e" || e.key === "E") &&
+                    e.target.getAttribute &&
+                    e.target.getAttribute("contenteditable") !== "true"
+                )
+                    editor.toggleEditMode();
+                if (
+                    (e.ctrlKey || e.metaKey) &&
+                    (e.key === "s" || e.key === "S")
+                ) {
+                    e.preventDefault();
+                    editor.save();
+                    editor.download();
+                }
+            });
+        </script>
+    </body>
+</html>

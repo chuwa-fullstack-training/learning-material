@@ -1,3 +1,12 @@
+/**
+ * 🟡 Understanding Phase — try to solve by hand first, then compare with AI.
+ * This teaches type narrowing / discriminated unions — a core TS skill.
+ *
+ * Submit `learning-log.md`:
+ *   - Why does TypeScript complain on `person.role` / `person.occupation`?
+ *   - Which narrowing technique did you use? (`in`, `instanceof`, type predicate, discriminant)
+ */
+
 interface User {
   name: string;
   age: number;

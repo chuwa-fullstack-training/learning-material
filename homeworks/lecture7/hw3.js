@@ -1,4 +1,9 @@
 /**
+ * 🟢 Leverage Phase — AI OK. Focus on understanding the GET/POST request/response cycle.
+ * The core learning: how state flows via query string and HTTP redirects (302).
+ */
+
+/**
  * For sample code web-server.js, make the following changes:
  * Once submitting in home.html, stay on the same page and display the submitted data.
  * 

@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Closures are "seeing but invisible state" — the only way to get it is to build one.
+ *
+ * Submit `learning-log.md`:
+ *   - What variable does the closure capture? Where is it stored in memory?
+ *   - Why doesn't calling `counter()` twice share state?
+ */
+
 function counter() {
     // implement here
 }

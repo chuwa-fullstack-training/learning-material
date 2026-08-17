@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Predict by hand first. NO running, NO AI.
+ * Trace the hoisting step by step in a comment. Then run to verify.
+ *
+ * Submit `learning-log.md`:
+ *   - Draw (in ASCII or text) the pre-hoisting and post-hoisting scope.
+ *   - Which line surprised you and why?
+ */
+
 // Hoisting
 
 // 1.

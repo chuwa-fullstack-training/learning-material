@@ -1,3 +1,14 @@
+/**
+ * 🔴 Perception Phase — Predict by hand first. NO running the code, NO AI.
+ * Write your predicted output and an explanation next to each line.
+ *
+ * Submit `learning-log.md`:
+ *   - Which predictions were wrong? Why did you guess wrong?
+ *   - What type coercion rule did you not know before?
+ *
+ * Only after submitting predictions, run the code to check.
+ */
+
 // What would be the output of following code?
 // Explain your answer.
 

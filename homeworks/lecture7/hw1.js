@@ -1,4 +1,11 @@
 /**
+ * 🟢 Leverage Phase — AI can help with Node.js boilerplate, but understand the pieces.
+ * Must be able to explain: fs.readdir (sync vs async), process.argv, path.extname.
+ *
+ * If you use AI: document which parts you asked for and which parts you wrote/modified.
+ */
+
+/**
  * write a program that prints a list of files in the given directory, filtered by the extension of the files.
  * The first argument is the directory name and the second argument is the extension filter.
  * Print the list of files (one file per line) to the console.

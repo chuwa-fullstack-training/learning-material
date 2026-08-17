@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 1 — Full-stack Web Development &amp; JavaScript Fundamentals</title>
+
+<!--
+  Fonts:
+  - Cabinet Grotesk + Hanken Grotesk via Fontshare (display + body)
+  - JetBrains Mono via Google Fonts (code + IDE chrome)
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* ===========================================
+   CSS CUSTOM PROPERTIES (THEME) — Tokyo Night IDE
+   Change these to retheme the whole deck.
+   =========================================== */
+:root {
+    /* --- Surfaces --- */
+    --stage-bg:       #0b0d17;   /* outermost, behind the editor window */
+    --slide-bg:       #0b0d17;
+    --win-bg:         #1a1b26;   /* editor window body */
+    --win-bar:        #16161e;   /* title bar / status bar */
+    --panel:          #1f2335;   /* cards / code blocks */
+    --panel-2:        #232846;
+    --border:         #2a2e45;
+    --border-soft:    #20243a;
+
+    /* --- Text --- */
+    --fg:             #c0caf5;   /* primary */
+    --fg-dim:         #9aa5ce;   /* secondary */
+    --fg-faint:       #565f89;   /* comments / muted */
+
+    /* --- Syntax accents (Tokyo Night) --- */
+    --blue:    #7aa2f7;
+    --cyan:    #7dcfff;
+    --green:   #9ece6a;
+    --purple:  #bb9af7;
+    --orange:  #ff9e64;
+    --red:     #f7768e;
+    --yellow:  #e0af68;
+    --teal:    #73daca;
+
+    --accent:  var(--blue);
+    --accent-2: var(--cyan);
+
+    /* --- Typography (authored at 1920×1080) --- */
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+
+    /* --- Motion --- */
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur: 0.62s;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===========================================
+   FIXED 16:9 STAGE — viewport-base.css (verbatim)
+   =========================================== */
+html, body {
+    width: 100%; height: 100%; margin: 0;
+    overflow: hidden; background: var(--stage-bg, #000);
+}
+.deck-viewport {
+    position: fixed; inset: 0; overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+.deck-stage {
+    position: absolute; left: 0; top: 0;
+    width: 1920px; height: 1080px;
+    overflow: hidden; transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+.slide {
+    position: absolute; inset: 0;
+    width: 1920px; height: 1080px;
+    overflow: hidden; display: block;
+    visibility: hidden; opacity: 0; pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+.slide.active, .slide.visible {
+    visibility: visible; opacity: 1; pointer-events: auto; z-index: 1;
+}
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls {
+    position: fixed; left: 50%; bottom: 22px;
+    transform: translateX(-50%); z-index: 1000;
+}
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide {
+        position: relative; display: block !important;
+        visibility: visible !important; opacity: 1 !important; pointer-events: auto !important;
+        width: 1920px; height: 1080px; break-after: page; page-break-after: always;
+    }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* ===========================================
+   EDITOR-WINDOW SHELL
+   Every content slide is framed as an IDE window:
+   title bar (tab) + canvas + status bar.
+   =========================================== */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    padding: 56px 64px;
+}
+
+.win {
+    width: 100%; height: 100%;
+    background: var(--win-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 40px 120px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+}
+
+/* --- Title bar --- */
+.titlebar {
+    height: 64px; flex: 0 0 64px;
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 26px;
+    background: linear-gradient(180deg, #1c1d2b, var(--win-bar));
+    border-bottom: 1px solid var(--border-soft);
+}
+.dots { display: flex; gap: 10px; }
+.dots span { width: 14px; height: 14px; border-radius: 50%; display: block; }
+.dots .r { background: #f7768e; }
+.dots .y { background: #e0af68; }
+.dots .g { background: #9ece6a; }
+.tab {
+    font-family: var(--font-mono); font-size: 19px; font-weight: 500;
+    color: var(--fg-dim);
+    background: var(--win-bg);
+    padding: 8px 18px; border-radius: 9px 9px 0 0;
+    border: 1px solid var(--border-soft); border-bottom: none;
+    position: relative; top: 1px;
+    display: flex; align-items: center; gap: 10px;
+}
+.tab::before {
+    content: ""; width: 9px; height: 9px; border-radius: 2px;
+    background: var(--accent); box-shadow: 0 0 10px var(--accent);
+}
+.tab .dirty { color: var(--fg-faint); }
+.breadcrumb {
+    margin-left: auto; font-family: var(--font-mono);
+    font-size: 16px; color: var(--fg-faint); letter-spacing: 0.04em;
+}
+.breadcrumb b { color: var(--cyan); font-weight: 500; }
+
+/* --- Canvas (the actual slide content) --- */
+.canvas {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column;
+    padding: 60px 76px 40px;
+    position: relative;
+}
+/* subtle line-number gutter */
+.canvas::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 64px;
+    background:
+        linear-gradient(90deg, rgba(86,95,137,0.10), transparent);
+    border-right: 1px solid var(--border-soft);
+}
+
+/* --- Status bar (VS Code style) --- */
+.statusbar {
+    height: 52px; flex: 0 0 52px;
+    display: flex; align-items: center; gap: 0;
+    background: linear-gradient(90deg, var(--accent), #5a7fd6);
+    color: #0b0d17; font-family: var(--font-mono); font-size: 16px; font-weight: 500;
+}
+.statusbar .seg { padding: 0 20px; height: 100%; display: flex; align-items: center; gap: 9px; }
+.statusbar .seg.branch { background: rgba(0,0,0,0.18); }
+.statusbar .spacer { flex: 1; }
+.statusbar .seg.right { background: rgba(0,0,0,0.10); }
+
+/* ===========================================
+   TYPOGRAPHY & CONTENT PRIMITIVES
+   =========================================== */
+.kicker {
+    font-family: var(--font-mono); font-size: 20px; font-weight: 500;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent-2); margin-bottom: 18px;
+    display: flex; align-items: center; gap: 12px;
+}
+.kicker::before { content: "//"; color: var(--fg-faint); }
+
+h2.title {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: 74px; line-height: 1.02; letter-spacing: -0.02em;
+    color: var(--fg); margin-bottom: 30px;
+}
+h2.title .hl { color: var(--accent); }
+
+.lead-in {
+    font-size: 27px; color: var(--fg-dim); line-height: 1.5;
+    max-width: 1300px; margin-bottom: 30px;
+}
+
+/* Bullet lists styled like a tree / token list */
+ul.list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+ul.list li {
+    font-size: 28px; line-height: 1.4; color: var(--fg);
+    padding-left: 38px; position: relative;
+}
+ul.list li::before {
+    content: "▸"; position: absolute; left: 0; top: 1px;
+    color: var(--accent); font-family: var(--font-mono);
+}
+ul.list li.sub { padding-left: 72px; font-size: 24px; color: var(--fg-dim); }
+ul.list li.sub::before { content: "└"; left: 38px; color: var(--fg-faint); }
+ul.list strong { color: var(--cyan); font-weight: 700; }
+ul.list em { color: var(--orange); font-style: normal; }
+
+code, .mono { font-family: var(--font-mono); }
+.icode {
+    font-family: var(--font-mono); font-size: 0.86em;
+    background: var(--panel); color: var(--teal);
+    padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border);
+}
+
+/* Two-column grid */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; flex: 1; min-height: 0; align-content: start; }
+.col-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 34px 36px;
+    display: flex; flex-direction: column; gap: 16px;
+}
+.col-card h3 {
+    font-family: var(--font-mono); font-size: 24px; font-weight: 700;
+    color: var(--fg); display: flex; align-items: center; gap: 12px;
+    padding-bottom: 14px; border-bottom: 1px dashed var(--border);
+}
+.col-card.accent-blue h3 { color: var(--blue); }
+.col-card.accent-cyan h3 { color: var(--cyan); }
+.col-card.accent-green h3 { color: var(--green); }
+.col-card.accent-purple h3 { color: var(--purple); }
+.col-card.accent-orange h3 { color: var(--orange); }
+
+/* Code block with faux syntax highlighting */
+.codeblock {
+    background: #15161f; border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin: 6px 0;
+}
+.codeblock .cb-bar {
+    background: var(--win-bar); padding: 10px 18px;
+    font-family: var(--font-mono); font-size: 15px; color: var(--fg-faint);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center; gap: 10px;
+}
+.codeblock .cb-bar::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.codeblock pre {
+    padding: 26px 30px; font-family: var(--font-mono);
+    font-size: 26px; line-height: 1.6; color: var(--fg);
+    overflow: auto; white-space: pre;
+}
+.tok-kw  { color: var(--purple); }
+.tok-fn  { color: var(--blue); }
+.tok-str { color: var(--green); }
+.tok-num { color: var(--orange); }
+.tok-com { color: var(--fg-faint); font-style: italic; }
+.tok-pun { color: var(--fg-dim); }
+.tok-out { color: var(--teal); }
+
+/* Callout / note */
+.note {
+    margin-top: auto;
+    background: linear-gradient(90deg, rgba(122,162,247,0.10), transparent);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    padding: 22px 28px; font-size: 24px; line-height: 1.45; color: var(--fg-dim);
+}
+.note b { color: var(--cyan); }
+.note.warn { border-left-color: var(--red); background: linear-gradient(90deg, rgba(247,118,142,0.12), transparent); }
+.note.warn b { color: var(--red); }
+
+/* Pills (history / lexical) */
+.pills { display: flex; flex-wrap: wrap; gap: 14px; }
+.pill {
+    font-family: var(--font-mono); font-size: 22px;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--fg-dim); padding: 10px 18px; border-radius: 999px;
+}
+.pill b { color: var(--cyan); }
+
+/* Image frame */
+.imgframe {
+    flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden;
+}
+.imgframe img { width: 100%; height: 100%; object-fit: contain; padding: 24px; }
+.imgframe.cover img { object-fit: cover; padding: 0; }
+
+.split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 44px; flex: 1; min-height: 0; align-items: center; }
+
+/* ===========================================
+   LEAD / SECTION-DIVIDER + TITLE SLIDES
+   Terminal aesthetic, centered.
+   =========================================== */
+.slide.lead { padding: 0; }
+.slide.lead .win { border-radius: 0; border: none; box-shadow: none; background: transparent; }
+.slide.lead .canvas { padding: 0; align-items: center; justify-content: center; text-align: center; }
+.slide.lead .canvas::before { display: none; }
+
+.terminal {
+    width: 1180px; max-width: 80%;
+    background: var(--win-bg); border: 1px solid var(--border);
+    border-radius: 18px; box-shadow: 0 50px 140px rgba(0,0,0,0.6);
+    overflow: hidden; text-align: left;
+}
+.terminal .titlebar { height: 58px; flex: none; }
+.terminal .tbody { padding: 40px 48px 52px; font-family: var(--font-mono); }
+.prompt { font-size: 26px; color: var(--green); margin-bottom: 10px; }
+.prompt .path { color: var(--blue); }
+.prompt .cmd { color: var(--fg); }
+.term-out { font-size: 22px; color: var(--fg-faint); margin-bottom: 28px; }
+
+.lead h1 {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: 92px; line-height: 1.0; letter-spacing: -0.025em;
+    color: var(--fg); margin: 8px 0 6px;
+}
+.lead h1 .hl { color: var(--accent); }
+.lead .by { font-family: var(--font-mono); font-size: 30px; color: var(--cyan); }
+.lead .section-num {
+    font-family: var(--font-mono); font-size: 22px; color: var(--fg-faint);
+    letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 18px;
+}
+.cursor {
+    display: inline-block; width: 14px; height: 30px; background: var(--accent);
+    margin-left: 6px; vertical-align: middle; animation: blink 1.05s steps(2,start) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Big section title on lead dividers */
+.lead .sectitle {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: 104px; line-height: 1.0; letter-spacing: -0.03em; color: var(--fg);
+}
+.lead .sectitle .hl { color: var(--accent); }
+
+/* ===========================================
+   MATRIX (2x2) + PHASE DIAGRAM
+   =========================================== */
+.matrix { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 26px; flex: 1; min-height: 0; }
+.quad {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px 32px; display: flex; flex-direction: column; gap: 12px;
+}
+.quad h3 { font-family: var(--font-mono); font-size: 25px; font-weight: 700; display: flex; gap: 12px; align-items: center; }
+.quad ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.quad li { font-size: 22px; color: var(--fg-dim); line-height: 1.35; padding-left: 24px; position: relative; }
+.quad li::before { content: "·"; position: absolute; left: 6px; color: var(--fg-faint); font-size: 26px; top: -4px; }
+.quad.red    { border-color: rgba(247,118,142,0.5); }
+.quad.red h3    { color: var(--red); }
+.quad.yellow { border-color: rgba(224,175,104,0.5); }
+.quad.yellow h3 { color: var(--yellow); }
+.quad.green  { border-color: rgba(158,206,106,0.5); }
+.quad.green h3  { color: var(--green); }
+.quad.gray   { border-color: var(--border); }
+.quad.gray h3   { color: var(--fg-dim); }
+
+.phases { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 26px; flex: 1; min-height: 0; align-items: stretch; }
+.phase {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 34px 32px; display: flex; flex-direction: column; gap: 16px; position: relative;
+}
+.phase .tag { font-family: var(--font-mono); font-size: 24px; font-weight: 700; display: flex; gap: 10px; align-items: center; }
+.phase .range { font-family: var(--font-mono); font-size: 19px; color: var(--fg-faint); letter-spacing: 0.08em; }
+.phase .mode { font-size: 28px; font-weight: 700; color: var(--fg); margin-top: 6px; }
+.phase p { font-size: 22px; color: var(--fg-dim); line-height: 1.4; }
+.phase.p1 { border-color: rgba(247,118,142,0.45); }
+.phase.p1 .tag { color: var(--red); }
+.phase.p2 { border-color: rgba(224,175,104,0.45); }
+.phase.p2 .tag { color: var(--yellow); }
+.phase.p3 { border-color: rgba(158,206,106,0.45); }
+.phase.p3 .tag { color: var(--green); }
+.phase .arrow { position: absolute; right: -23px; top: 50%; transform: translateY(-50%); color: var(--fg-faint); font-size: 30px; z-index: 2; }
+.phase:last-child .arrow { display: none; }
+
+/* Timeline (history) */
+.timeline { display: flex; flex-direction: column; gap: 0; flex: 1; }
+.tl-row { display: grid; grid-template-columns: 160px 1fr; gap: 24px; align-items: center; padding: 11px 0; border-bottom: 1px dashed var(--border-soft); }
+.tl-row .yr { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--cyan); }
+.tl-row .ev { font-size: 25px; color: var(--fg-dim); }
+.tl-row.hot .yr { color: var(--orange); }
+.tl-row.hot .ev { color: var(--fg); font-weight: 700; }
+
+/* ===========================================
+   ENTRANCE ANIMATIONS (.reveal staggered)
+   =========================================== */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay: .06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay: .13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay: .20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay: .27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay: .34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay: .41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay: .48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay: .55s; }
+.slide.visible .reveal:nth-child(9) { transition-delay: .62s; }
+.slide.visible .reveal:nth-child(10){ transition-delay: .69s; }
+
+/* ===========================================
+   DECK CHROME (outside the stage)
+   =========================================== */
+#progress {
+    position: fixed; top: 0; left: 0; height: 4px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--cyan));
+    z-index: 1000; transition: width .35s var(--ease); box-shadow: 0 0 14px var(--accent);
+}
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle {
+    position: fixed; top: 18px; left: 18px; z-index: 10001;
+    width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--win-bar); color: var(--fg); font-size: 20px; cursor: pointer;
+    opacity: 0; pointer-events: none; transition: opacity .3s ease;
+}
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+.edit-toggle.active { background: var(--accent); color: #0b0d17; border-color: var(--accent); }
+.editing [contenteditable="true"] { outline: 1px dashed var(--accent); outline-offset: 4px; border-radius: 4px; }
+#hint {
+    position: fixed; bottom: 16px; right: 18px; z-index: 1000;
+    font-family: var(--font-mono); font-size: 13px; color: var(--fg-faint);
+    background: rgba(22,22,30,0.7); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-soft);
+    transition: opacity .5s; backdrop-filter: blur(6px);
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+    <div class="win"><div class="canvas">
+        <div class="terminal reveal">
+            <div class="titlebar">
+                <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+                <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+            </div>
+            <div class="tbody">
+                <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ ./start --lecture 01</span></div>
+                <div class="term-out">› booting curriculum… frontend + backend + the brain in between</div>
+                <div class="section-num">Lecture 01</div>
+                <h1>Full-stack <span class="hl">Web Development</span></h1>
+                <div class="by">// Aaron Zhang<span class="cursor"></span></div>
+            </div>
+        </div>
+    </div></div>
+</section>
+
+<!-- ============ 02 · WHAT IS FULL-STACK (front vs back) ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">roadmap.md</div>
+            <div class="breadcrumb">ref: <b>roadmap.sh/full-stack</b></div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">the two halves of the stack</div>
+            <h2 class="title reveal">What does <span class="hl">"full-stack"</span> actually mean?</h2>
+            <div class="cols">
+                <div class="col-card accent-cyan reveal">
+                    <h3>🎨 Front-end</h3>
+                    <ul class="list">
+                        <li>HTML + CSS + JS</li>
+                        <li>UI / UX</li>
+                        <li>Accessibility</li>
+                        <li>Browser &amp; <span class="icode">DOM</span> manipulation</li>
+                        <li>…</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-blue reveal">
+                    <h3>⚙️ Back-end</h3>
+                    <ul class="list">
+                        <li>Java / Python / <strong>Node.js</strong></li>
+                        <li>Database</li>
+                        <li>APIs</li>
+                        <li>Authentication</li>
+                        <li>Web security · …</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">overview</div>
+            <div class="spacer"></div>
+            <div class="seg right">02 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 03 · MARKETING IMAGE ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">why-it-matters.png</div>
+            <div class="breadcrumb">the market</div>
+        </div>
+        <div class="canvas" style="padding:40px 56px;">
+            <div class="kicker reveal">the demand</div>
+            <div class="imgframe reveal" style="margin-top:8px;">
+                <img src="assets/marketing.png" alt="Full-stack developer market and demand chart">
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">image</div>
+            <div class="spacer"></div>
+            <div class="seg right">03 / 30 · PNG</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 04 · TRAINING OVERVIEW ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">overview.md</div>
+            <div class="breadcrumb">logistics</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">how this training runs</div>
+            <h2 class="title reveal">Training <span class="hl">Overview</span></h2>
+            <ul class="list reveal">
+                <li>Instructors: <strong>Aaron Zhang</strong> &amp; <strong>Alex Chen</strong> <em>(Thursday TA session)</em></li>
+                <li>Content &amp; Schedule</li>
+                <li>Assignments &amp; Quiz</li>
+                <li class="sub">Every Thursday — Quiz</li>
+                <li class="sub">LeetCode — <strong>~150 problems</strong> solved before the end of training</li>
+                <li>Projects — <em>two group projects</em></li>
+                <li>Industry context: <strong>PingCAP</strong> / TiDB education program</li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">syllabus</div>
+            <div class="spacer"></div>
+            <div class="seg right">04 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 05 · TiDB IMAGE ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">tidb.png</div>
+            <div class="breadcrumb">partner</div>
+        </div>
+        <div class="canvas" style="padding:40px 56px;">
+            <div class="kicker reveal">a real distributed database</div>
+            <div class="imgframe reveal" style="margin-top:8px;">
+                <img src="assets/TiDB.png" alt="TiDB architecture by PingCAP">
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">image</div>
+            <div class="spacer"></div>
+            <div class="seg right">05 / 30 · PNG</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 06 · ASSESSMENT & GRADING ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">grading.json</div>
+            <div class="breadcrumb">weights</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">how you'll be assessed</div>
+            <h2 class="title reveal">Assessment &amp; <span class="hl">Grading</span></h2>
+            <div class="cols" style="grid-template-columns:1fr 1fr 1fr;">
+                <div class="col-card accent-cyan reveal">
+                    <h3>30%</h3>
+                    <ul class="list"><li>Quiz</li></ul>
+                </div>
+                <div class="col-card accent-blue reveal">
+                    <h3>35%</h3>
+                    <ul class="list"><li>Project 1</li></ul>
+                </div>
+                <div class="col-card accent-green reveal">
+                    <h3>35%</h3>
+                    <ul class="list">
+                        <li>Project 2</li>
+                        <li class="sub"><strong>Live demo</strong> (advanced → marketing)</li>
+                        <li class="sub">Recording demo</li>
+                        <li class="sub">Peer reviews</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">assessment</div>
+            <div class="spacer"></div>
+            <div class="seg right">06 / 30 · JSON</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 07 · HOW TO SUCCEED ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">how-to-succeed.md</div>
+            <div class="breadcrumb">mindset</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">your operating principles</div>
+            <h2 class="title reveal">How to <span class="hl">succeed</span> in this training</h2>
+            <div class="pills reveal" style="margin-top:10px;">
+                <div class="pill">Be <b>curious</b></div>
+                <div class="pill">Be <b>proactive</b></div>
+                <div class="pill">Be <b>persistent</b></div>
+                <div class="pill">Be <b>collaborative</b></div>
+            </div>
+            <div class="note reveal"><b>Be strategic about AI coding assistants.</b> The single habit that separates engineers who grow from engineers who plateau.</div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">mindset</div>
+            <div class="spacer"></div>
+            <div class="seg right">07 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 08 · SECTION: AI APPROACH ============ -->
+<section class="slide lead">
+    <div class="win"><div class="canvas">
+        <div class="reveal">
+            <div class="section-num">Part I</div>
+            <div class="sectitle">How we approach <span class="hl">AI</span><br>in this course</div>
+        </div>
+    </div></div>
+</section>
+
+<!-- ============ 09 · CONTENT MATRIX ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">ai-policy.matrix</div>
+            <div class="breadcrumb">yourself vs assisted</div>
+        </div>
+        <div class="canvas" style="padding:44px 64px 32px;">
+            <h2 class="title reveal" style="font-size:54px; margin-bottom:22px;">What to do <span class="hl">yourself</span> vs. what AI can help with</h2>
+            <div class="matrix">
+                <div class="quad red reveal">
+                    <h3>🔴 Must do by hand</h3>
+                    <ul>
+                        <li>Closures, scope, async</li>
+                        <li>Core algorithm logic</li>
+                        <li>The feeling of being "stuck" = where real understanding happens</li>
+                    </ul>
+                </div>
+                <div class="quad green reveal">
+                    <h3>🟢 AI-assisted OK</h3>
+                    <ul>
+                        <li>Boilerplate code, config files</li>
+                        <li>Save time for architectural thinking</li>
+                    </ul>
+                </div>
+                <div class="quad yellow reveal">
+                    <h3>🟡 Must deeply understand</h3>
+                    <ul>
+                        <li>System design, architecture decisions</li>
+                        <li>AI can write code, but "why this design" must be built by you</li>
+                    </ul>
+                </div>
+                <div class="quad gray reveal">
+                    <h3>⚪ Safe to skip</h3>
+                    <ul>
+                        <li>Memorizing specific API parameters</li>
+                        <li>Just look up the docs when needed</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">ai-policy</div>
+            <div class="spacer"></div>
+            <div class="seg right">09 / 30 · Matrix</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 10 · THREE-PHASE AI INTEGRATION ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">ai-phases.md</div>
+            <div class="breadcrumb">L1 → Final</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">a deliberate ramp</div>
+            <h2 class="title reveal" style="font-size:56px; margin-bottom:24px;">Three-phase <span class="hl">AI integration</span></h2>
+            <div class="phases">
+                <div class="phase p1 reveal">
+                    <div class="tag">🔴 Awareness</div>
+                    <div class="range">L1 – L6</div>
+                    <div class="mode">AI disabled</div>
+                    <p>Build code intuition. Wrestle with the language firsthand.</p>
+                    <div class="arrow">→</div>
+                </div>
+                <div class="phase p2 reveal">
+                    <div class="tag">🟡 Comparison</div>
+                    <div class="range">L7 – L13</div>
+                    <div class="mode">AI as mirror</div>
+                    <p>Write your solution first, then compare it with AI's.</p>
+                    <div class="arrow">→</div>
+                </div>
+                <div class="phase p3 reveal">
+                    <div class="tag">🟢 Ownership</div>
+                    <div class="range">L14 – L17 + Final</div>
+                    <div class="mode">AI as accelerator</div>
+                    <p>Use freely — focus shifts to review &amp; judgment.</p>
+                </div>
+            </div>
+            <div class="note reveal">The first 6 weeks will feel slow — you're building the foundation. <b>After that, you'll accelerate fast.</b></div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">roadmap</div>
+            <div class="spacer"></div>
+            <div class="seg right">10 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 11 · ASSESSMENT METHODS ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">assessment-methods.md</div>
+            <div class="breadcrumb">how we measure learning</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">proof of understanding</div>
+            <h2 class="title reveal" style="font-size:56px;">Assessment <span class="hl">methods</span></h2>
+            <ul class="list reveal" style="gap:14px;">
+                <li><strong>Learning Log</strong> — Awareness phase: a journal of blockers, attempts, and resolution.</li>
+                <li><strong>AI Comparison</strong> — Comparison phase: your solution first, then AI's, then a comparison report.</li>
+                <li><strong>AI Usage Log</strong> — Ownership phase: document where AI helped and what judgments you made.</li>
+                <li><strong>Mini Mock</strong> — a no-AI live assessment at the end of each phase.</li>
+                <li><strong>Code Review</strong> — final project mid-term + final live code walkthrough.</li>
+            </ul>
+            <div class="note reveal">The goal isn't how much code you produce — it's the <b>dual ability</b> to solve problems independently <b>and</b> leverage AI effectively.</div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">assessment</div>
+            <div class="spacer"></div>
+            <div class="seg right">11 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 12 · PREPARATION ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">setup.sh</div>
+            <div class="breadcrumb">before we start</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">set up your dev environment</div>
+            <h2 class="title reveal">Preparation prior to <span class="hl">courses</span></h2>
+            <ul class="list reveal">
+                <li>Browser: <strong>Chrome</strong> / Firefox / Safari</li>
+                <li>Editor / IDE: <strong>Visual Studio Code</strong>, WebStorm</li>
+                <li>Git / GitHub</li>
+                <li>Set up Node.js env <em>(optional for now)</em></li>
+                <li>AI assistant: Copilot <em>(disabled in Awareness, enabled from L7)</em></li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">setup</div>
+            <div class="spacer"></div>
+            <div class="seg right">12 / 30 · Shell</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 13 · SECTION: JS FUNDAMENTALS ============ -->
+<section class="slide lead">
+    <div class="win"><div class="canvas">
+        <div class="reveal" style="max-width:1280px;">
+            <div class="section-num">Part II</div>
+            <div class="sectitle">JavaScript <span class="hl">Fundamentals</span></div>
+            <div class="note warn" style="margin-top:40px; text-align:left; font-size:25px;">
+                🔴 <b>Strongly recommended: do NOT use AI to generate this code.</b> Experience hoisting confusion, scope boundaries, and type-coercion quirks firsthand. These "gotcha" moments are exactly what let you evaluate AI-generated code later.
+            </div>
+        </div>
+    </div></div>
+</section>
+
+<!-- ============ 14 · WHAT IS JAVASCRIPT ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">what-is-js.md</div>
+            <div class="breadcrumb">one language, many labels</div>
+        </div>
+        <div class="canvas">
+            <div class="split">
+                <div>
+                    <div class="kicker reveal">definitions</div>
+                    <h2 class="title reveal" style="font-size:60px;">What is <span class="hl">JavaScript</span>?</h2>
+                    <ul class="list reveal" style="gap:11px;">
+                        <li>a <strong>programming</strong> language</li>
+                        <li>a <strong>scripting</strong> language</li>
+                        <li>a <strong>dynamic</strong> language</li>
+                        <li>a <strong>weakly typed</strong> language</li>
+                        <li>a <strong>prototype-based</strong> language</li>
+                        <li>a <strong>multi-paradigm</strong> language</li>
+                        <li>a <strong>single-threaded</strong> language …</li>
+                    </ul>
+                </div>
+                <div class="imgframe reveal">
+                    <img src="assets/what-is-javascript.png" alt="What is JavaScript illustration">
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">intro</div>
+            <div class="spacer"></div>
+            <div class="seg right">14 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 15 · CLIENT VS SERVER ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">runtimes.md</div>
+            <div class="breadcrumb">same language, two homes</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">where JavaScript runs</div>
+            <h2 class="title reveal" style="font-size:54px;">Client-side <span class="hl">vs.</span> Server-side JS</h2>
+            <div class="cols">
+                <div class="col-card accent-cyan reveal">
+                    <h3>🌐 Client-side</h3>
+                    <ul class="list">
+                        <li>runs in the <strong>browser</strong></li>
+                        <li>manipulates the <span class="icode">DOM</span></li>
+                        <li>makes HTTP requests</li>
+                        <li>…</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-green reveal">
+                    <h3>🖥️ Server-side</h3>
+                    <ul class="list">
+                        <li>runs in <strong>Node.js</strong></li>
+                        <li>manipulates files</li>
+                        <li>makes HTTP requests</li>
+                        <li>…</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">runtimes</div>
+            <div class="spacer"></div>
+            <div class="seg right">15 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 16 · HISTORY ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">history.log</div>
+            <div class="breadcrumb">ECMAScript timeline</div>
+        </div>
+        <div class="canvas" style="padding:50px 76px 30px;">
+            <div class="kicker reveal">ECMA-262</div>
+            <h2 class="title reveal" style="font-size:54px; margin-bottom:18px;">History of <span class="hl">JavaScript</span></h2>
+            <div class="timeline reveal">
+                <div class="tl-row"><div class="yr">1995</div><div class="ev">Brendan Eich, Netscape — JavaScript is born</div></div>
+                <div class="tl-row"><div class="yr">1996</div><div class="ev">ECMAScript 1</div></div>
+                <div class="tl-row"><div class="yr">1997</div><div class="ev">ECMAScript 2</div></div>
+                <div class="tl-row"><div class="yr">1999</div><div class="ev">ECMAScript 3</div></div>
+                <div class="tl-row"><div class="yr">2009</div><div class="ev">ECMAScript 5</div></div>
+                <div class="tl-row hot"><div class="yr">2015</div><div class="ev">ECMAScript 6 — the modern era (let/const, arrow fns, classes, modules)</div></div>
+                <div class="tl-row"><div class="yr">2016</div><div class="ev">ECMAScript 7 — yearly releases from here on …</div></div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">history</div>
+            <div class="spacer"></div>
+            <div class="seg right">16 / 30 · Log</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 17 · FIRST PROGRAM ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">hello.js</div>
+            <div class="breadcrumb">your first line</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">tradition demands it</div>
+            <h2 class="title reveal">First JavaScript <span class="hl">program</span></h2>
+            <div class="codeblock reveal">
+                <div class="cb-bar">hello.js</div>
+                <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Hello World'</span><span class="tok-pun">);</span></pre>
+            </div>
+            <ul class="list reveal" style="margin-top:8px;">
+                <li>run in the <strong>browser console</strong></li>
+                <li>run in <strong>Node.js</strong></li>
+                <li>run in <strong>VS Code</strong></li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">JavaScript</div>
+            <div class="spacer"></div>
+            <div class="seg right">17 / 30 · UTF-8</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 18 · LEXICAL STRUCTURE ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">lexical-structure.md</div>
+            <div class="breadcrumb">the rules of the text</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">how source code is read</div>
+            <h2 class="title reveal" style="font-size:54px;">Lexical <span class="hl">structure</span></h2>
+            <div class="cols">
+                <div class="col-card accent-blue reveal">
+                    <h3># characters</h3>
+                    <ul class="list">
+                        <li>case sensitive</li>
+                        <li>whitespace</li>
+                        <li>Unicode — <span class="icode">'café' === 'café'</span></li>
+                        <li>comments</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-purple reveal">
+                    <h3># names</h3>
+                    <ul class="list">
+                        <li><strong>identifiers</strong> — a name</li>
+                        <li class="sub">start with a letter, <span class="icode">_</span>, or <span class="icode">$</span></li>
+                        <li><strong>reserved words</strong></li>
+                        <li class="sub"><span class="icode">break case catch class const continue …</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">lexical</div>
+            <div class="spacer"></div>
+            <div class="seg right">18 / 30 · Markdown</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 19 · LEXICAL STRUCTURE (cont'd) ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">lexical-structure.md</div>
+            <div class="breadcrumb">cont'd</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">literals &amp; semicolons</div>
+            <h2 class="title reveal" style="font-size:50px;">Lexical structure <span class="hl">(cont'd)</span></h2>
+            <ul class="list reveal" style="gap:12px;">
+                <li><strong>literals</strong> — a value that appears directly in a program</li>
+                <li class="sub"><span class="icode">123  12.34  'abc'  "abc"  true  false  null  undefined  /abc/</span></li>
+                <li><strong>optional semicolons</strong> — but required to separate statements on one line</li>
+                <li class="sub">if a line starts with <span class="icode">(</span> <span class="icode">[</span> <span class="icode">/</span> <span class="icode">+</span> <span class="icode">-</span>, it may continue the previous statement</li>
+            </ul>
+            <div class="codeblock reveal">
+                <div class="cb-bar">asi-gotcha.js</div>
+                <pre><span class="tok-kw">var</span> x <span class="tok-pun">=</span> <span class="tok-num">0</span><span class="tok-pun">;</span> <span class="tok-com">// semicolon omitted below…</span>
+<span class="tok-pun">[</span>x<span class="tok-pun">,</span> x <span class="tok-pun">+</span> <span class="tok-num">1</span><span class="tok-pun">,</span> x <span class="tok-pun">+</span> <span class="tok-num">2</span><span class="tok-pun">].</span><span class="tok-fn">forEach</span><span class="tok-pun">(</span><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">lexical</div>
+            <div class="spacer"></div>
+            <div class="seg right">19 / 30 · UTF-8</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 20 · DATA TYPES ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">data-types.js</div>
+            <div class="breadcrumb">primitive vs object</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">everything is one of these</div>
+            <h2 class="title reveal" style="font-size:54px;">Data <span class="hl">types</span></h2>
+            <div class="cols">
+                <div class="col-card accent-cyan reveal">
+                    <h3>Primitive types</h3>
+                    <ul class="list">
+                        <li><strong>number</strong></li>
+                        <li><strong>string</strong></li>
+                        <li><strong>boolean</strong></li>
+                        <li><strong>null</strong> · <strong>undefined</strong></li>
+                        <li>symbol · <em>bigint (ES2020)</em></li>
+                    </ul>
+                </div>
+                <div class="col-card accent-orange reveal">
+                    <h3>Object / complex</h3>
+                    <ul class="list">
+                        <li>Object</li>
+                        <li>Array</li>
+                        <li>Function</li>
+                        <li>Date · RegExp · …</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">types</div>
+            <div class="spacer"></div>
+            <div class="seg right">20 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 21 · NUMBER ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">number.js</div>
+            <div class="breadcrumb">one type for all numbers</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">primitive · number</div>
+            <h2 class="title reveal"><span class="hl">Number</span></h2>
+            <ul class="list reveal">
+                <li>integer</li>
+                <li>floating-point</li>
+                <li><span class="icode">NaN</span></li>
+                <li><span class="icode">Infinity</span> / <span class="icode">-Infinity</span> → <span class="icode">Number.POSITIVE_INFINITY</span> / <span class="icode">NEGATIVE_INFINITY</span></li>
+                <li><span class="icode">Number.MAX_VALUE</span> / <span class="icode">Number.MIN_VALUE</span></li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">types</div>
+            <div class="spacer"></div>
+            <div class="seg right">21 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 22 · STRING ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">string.js</div>
+            <div class="breadcrumb">text, with quirks</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">primitive · string</div>
+            <h2 class="title reveal"><span class="hl">String</span></h2>
+            <ul class="list reveal" style="gap:13px;">
+                <li>single <span class="icode">'</span> / double <span class="icode">"</span> quotes <em>(no char type in JS)</em></li>
+                <li>backtick <span class="icode">`</span> template literals</li>
+                <li>escape character <span class="icode">\</span></li>
+                <li><strong>length</strong> — max is <span class="icode">2^53 − 1</span>, but engine-dependent:</li>
+                <li class="sub">V8: <span class="icode">2^29 − 24</span> (~1 GiB) · 32-bit: <span class="icode">2^28 − 16</span> (~512 MiB)</li>
+                <li class="sub">Firefox: <span class="icode">2^30 − 2</span> (~2 GiB) · Safari: <span class="icode">2^31 − 1</span> (~4 GiB)</li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">types</div>
+            <div class="spacer"></div>
+            <div class="seg right">22 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 23 · BOOLEAN + NULL/UNDEFINED ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">boolean-null.js</div>
+            <div class="breadcrumb">truthiness &amp; nothingness</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">primitive · boolean / null / undefined</div>
+            <h2 class="title reveal" style="font-size:56px;"><span class="hl">Boolean</span>, Null &amp; Undefined</h2>
+            <div class="cols">
+                <div class="col-card accent-cyan reveal">
+                    <h3>Boolean</h3>
+                    <ul class="list">
+                        <li><span class="icode">true</span> / <span class="icode">false</span></li>
+                        <li>the <span class="icode">Boolean()</span> function</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-purple reveal">
+                    <h3>Null &amp; Undefined</h3>
+                    <ul class="list">
+                        <li><strong>null</strong> — a deliberate non-value</li>
+                        <li><strong>undefined</strong> — an uninitialized value</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">types</div>
+            <div class="spacer"></div>
+            <div class="seg right">23 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 24 · SYMBOL ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">symbol.js</div>
+            <div class="breadcrumb">unique &amp; immutable</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">primitive · symbol (ES6)</div>
+            <h2 class="title reveal"><span class="hl">Symbol</span></h2>
+            <ul class="list reveal">
+                <li>a new primitive type in <strong>ES6</strong></li>
+                <li>a <strong>unique</strong> and <strong>immutable</strong> data type</li>
+                <li>used as the key of an object property</li>
+            </ul>
+            <div class="codeblock reveal">
+                <div class="cb-bar">symbol.js — replacing magic constants</div>
+                <pre><span class="tok-kw">const</span> COLOR_RED   <span class="tok-pun">=</span> <span class="tok-fn">Symbol</span><span class="tok-pun">(</span><span class="tok-str">'red'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> COLOR_GREEN <span class="tok-pun">=</span> <span class="tok-fn">Symbol</span><span class="tok-pun">(</span><span class="tok-str">'green'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> COLOR_BLUE  <span class="tok-pun">=</span> <span class="tok-fn">Symbol</span><span class="tok-pun">(</span><span class="tok-str">'blue'</span><span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">types</div>
+            <div class="spacer"></div>
+            <div class="seg right">24 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 25 · TYPE CONVERSION / COERCION ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">coercion.js</div>
+            <div class="breadcrumb">implicit vs explicit</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">a classic gotcha source</div>
+            <h2 class="title reveal" style="font-size:54px;">Type Conversion / <span class="hl">Coercion</span></h2>
+            <ul class="list reveal">
+                <li><strong>coercion is implicit</strong>; conversion is implicit <em>or</em> explicit</li>
+                <li>the <span class="icode">Number()</span> function</li>
+                <li>the <span class="icode">String()</span> function</li>
+                <li>the <span class="icode">Boolean()</span> function</li>
+                <li><span class="icode">parseInt()</span> / <span class="icode">parseFloat()</span></li>
+            </ul>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">conversion</div>
+            <div class="spacer"></div>
+            <div class="seg right">25 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 26 · DYNAMIC TYPING ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">dynamic-typing.js</div>
+            <div class="breadcrumb">types live on values</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">no type annotations needed</div>
+            <h2 class="title reveal">Dynamic <span class="hl">typing</span></h2>
+            <ul class="list reveal">
+                <li>a variable can hold a value of <strong>any type</strong></li>
+                <li>it can hold <strong>different types</strong> at different times</li>
+                <li>it can be <strong>reassigned</strong> to a value of a different type</li>
+            </ul>
+            <div class="codeblock reveal">
+                <div class="cb-bar">dynamic-typing.js</div>
+                <pre><span class="tok-kw">let</span> v <span class="tok-pun">=</span> <span class="tok-num">42</span><span class="tok-pun">;</span>        <span class="tok-com">// number</span>
+v <span class="tok-pun">=</span> <span class="tok-str">'now a string'</span><span class="tok-pun">;</span>  <span class="tok-com">// perfectly legal</span>
+v <span class="tok-pun">=</span> <span class="tok-pun">[</span> <span class="tok-num">1</span><span class="tok-pun">,</span> <span class="tok-num">2</span><span class="tok-pun">,</span> <span class="tok-num">3</span> <span class="tok-pun">];</span>   <span class="tok-com">// …and now an array</span></pre>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">typing</div>
+            <div class="spacer"></div>
+            <div class="seg right">26 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 27 · VARIABLE DECLARATION ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">declarations.js</div>
+            <div class="breadcrumb">var / let / const</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">three ways to declare</div>
+            <h2 class="title reveal" style="font-size:54px;">Variable <span class="hl">declaration</span></h2>
+            <div class="cols">
+                <div class="col-card accent-blue reveal">
+                    <h3># keywords</h3>
+                    <ul class="list">
+                        <li><span class="icode">var</span> — function-scoped, hoisted</li>
+                        <li><span class="icode">let</span> — block-scoped, reassignable</li>
+                        <li><span class="icode">const</span> — block-scoped, no rebind</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-green reveal">
+                    <h3># naming conventions</h3>
+                    <ul class="list">
+                        <li><span class="icode">camelCase</span></li>
+                        <li><span class="icode">snake_case</span></li>
+                        <li><span class="icode">PascalCase</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">declarations</div>
+            <div class="spacer"></div>
+            <div class="seg right">27 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 28 · VARIABLE SCOPE + HOISTING ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">scope.js</div>
+            <div class="breadcrumb">where names live</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">scope &amp; hoisting</div>
+            <h2 class="title reveal">Variable <span class="hl">scope</span></h2>
+            <ul class="list reveal">
+                <li><strong>global</strong> scope</li>
+                <li><strong>function</strong> scope</li>
+                <li><strong>block</strong> scope <em>(ES6)</em></li>
+            </ul>
+            <div class="codeblock reveal">
+                <div class="cb-bar">hoisting.js — declarations rise, assignments don't</div>
+                <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>x<span class="tok-pun">);</span> <span class="tok-com">// undefined  (not a ReferenceError!)</span>
+<span class="tok-kw">var</span> x <span class="tok-pun">=</span> <span class="tok-num">1</span><span class="tok-pun">;</span></pre>
+            </div>
+            <div class="note warn reveal"><b>Hoisting:</b> <span class="icode">var x</span> is hoisted to the top of its scope, but the assignment <span class="icode">= 1</span> stays put.</div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">scope</div>
+            <div class="spacer"></div>
+            <div class="seg right">28 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 29 · OPERATORS ============ -->
+<section class="slide">
+    <div class="win">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">operators.js</div>
+            <div class="breadcrumb">the full toolbox</div>
+        </div>
+        <div class="canvas">
+            <div class="kicker reveal">the building blocks of expressions</div>
+            <h2 class="title reveal" style="font-size:56px;"><span class="hl">Operators</span></h2>
+            <div class="cols">
+                <div class="col-card accent-cyan reveal">
+                    <h3># everyday</h3>
+                    <ul class="list">
+                        <li>arithmetic · assignment</li>
+                        <li>comparison · logical</li>
+                        <li>string · conditional (ternary)</li>
+                        <li>unary</li>
+                    </ul>
+                </div>
+                <div class="col-card accent-orange reveal">
+                    <h3># special</h3>
+                    <ul class="list">
+                        <li>bitwise · comma</li>
+                        <li><span class="icode">typeof</span> · <span class="icode">delete</span></li>
+                        <li><span class="icode">in</span> · <span class="icode">instanceof</span></li>
+                        <li><span class="icode">void</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="statusbar">
+            <div class="seg branch">⎇ main</div>
+            <div class="seg">operators</div>
+            <div class="spacer"></div>
+            <div class="seg right">29 / 30 · JavaScript</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 30 · CLOSING ============ -->
+<section class="slide lead">
+    <div class="win"><div class="canvas">
+        <div class="terminal reveal">
+            <div class="titlebar">
+                <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+                <div class="tab">~/lecture-01 <span class="dirty">— zsh</span></div>
+            </div>
+            <div class="tbody">
+                <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ git commit -m "lecture 01 complete"</span></div>
+                <div class="term-out">› foundations laid · next: write code by hand, get stuck, learn</div>
+                <h1 style="font-size:74px;">See you <span class="hl">Thursday</span>.</h1>
+                <div class="by">// keep it curious<span class="cursor"></span></div>
+            </div>
+        </div>
+    </div></div>
+</section>
+
+</main>
+</div>
+
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   - fixed 16:9 stage scaling
+   - keyboard / touch / wheel navigation
+   - progress bar + URL hash deep-linking
+   =========================================== */
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.stage = document.getElementById('deckStage');
+        this.progress = document.getElementById('progress');
+        this.current = 0;
+        this.wheelLock = false;
+
+        this.setupStageScale();
+        this.setupKeyboardNav();
+        this.setupTouchNav();
+        this.setupWheelNav();
+
+        // deep-link via #n
+        const fromHash = parseInt(location.hash.replace('#', ''), 10);
+        this.show(Number.isFinite(fromHash) ? fromHash - 1 : 0);
+        this.fadeHint();
+    }
+
+    /* Scale the whole 1920×1080 stage to fit the viewport (letterbox). */
+    setupStageScale() {
+        const scale = () => {
+            const f = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+            const x = (window.innerWidth - 1920 * f) / 2;
+            const y = (window.innerHeight - 1080 * f) / 2;
+            this.stage.style.transform = `translate(${x}px, ${y}px) scale(${f})`;
+        };
+        scale();
+        window.addEventListener('resize', scale);
+    }
+
+    setupKeyboardNav() {
+        document.addEventListener('keydown', (e) => {
+            // never steal keys while editing text
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            switch (e.key) {
+                case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown':
+                    e.preventDefault(); this.next(); break;
+                case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+                    e.preventDefault(); this.prev(); break;
+                case 'Home': e.preventDefault(); this.show(0); break;
+                case 'End':  e.preventDefault(); this.show(this.slides.length - 1); break;
+                case 'f': case 'F':
+                    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                    else document.exitFullscreen();
+                    break;
+            }
+        });
+    }
+
+    setupTouchNav() {
+        let x0 = null, y0 = null;
+        const v = document.querySelector('.deck-viewport');
+        v.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        v.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0;
+            const dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+
+    fadeHint() {
+        const hint = document.getElementById('hint');
+        if (hint) setTimeout(() => { hint.style.opacity = '0'; }, 4200);
+    }
+
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+
+/* ===========================================
+   INLINE TEXT EDITOR (post-draft affordance)
+   Toggle with the ✏️ button, the top-left hotzone, or the E key.
+   Edits persist to localStorage; Ctrl/Cmd+S downloads the HTML.
+   =========================================== */
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture1-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .mode, .prompt, .term-out, .by, .pill, .note, .ev, .kicker');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() {
+        const data = {};
+        this.targets.forEach((t, i) => data[i] = t.innerHTML);
+        localStorage.setItem(this.key, JSON.stringify(data));
+    }
+    restore() {
+        const raw = localStorage.getItem(this.key);
+        if (!raw) return;
+        try {
+            const data = JSON.parse(raw);
+            this.targets.forEach((t, i) => { if (data[i] !== undefined) t.innerHTML = data[i]; });
+        } catch (e) { /* ignore corrupt cache */ }
+    }
+    download() {
+        const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'lecture1.html';
+        a.click();
+    }
+}
+
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+
+/* --- edit toggle wiring (JS hover with grace period, per template) --- */
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+document.getElementById('editToggle').addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key === 'e' || e.key === 'E') && e.target.getAttribute && e.target.getAttribute('contenteditable') !== 'true') {
+        editor.toggleEditMode();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

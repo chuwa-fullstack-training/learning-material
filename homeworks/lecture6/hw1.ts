@@ -1,3 +1,12 @@
+/**
+ * 🟡 Understanding Phase — basic types by hand, advanced types may reference AI.
+ * Try to fix by hand FIRST. Only consult AI after your own attempt.
+ *
+ * Submit `learning-log.md`:
+ *   - Explain why TypeScript rejects the return in #1 (hint: generic type preservation).
+ *   - For #2, describe the `overloads` solution and why `string | number` alone fails.
+ */
+
 // 1. why there would be error in the following code? and how to fix it?
 type User = {
   id: number;

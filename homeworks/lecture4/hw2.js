@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Functional chaining is the muscle memory for modern JS. No loops allowed.
+ *
+ * Submit `learning-log.md`:
+ *   - Which was hardest to express with reduce? Why?
+ *   - Compare `reduce` vs a traditional loop — what's clearer to you, and why?
+ */
+
 // ONLY use map, filter, reduce to solve the following problems:
 
 // 1. Given an array of numbers, return an array of numbers that are doubled.

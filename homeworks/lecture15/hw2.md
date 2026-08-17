@@ -1,3 +1,11 @@
-Refactor lecture 14 homework 2 to use React Router
+# Color Components with Router
 
-Note: make every color component a separate route
+> 🟢 Quick routing practice.
+
+Refactor lecture 14 homework 2 (Color Components) to use React Router.
+
+## Requirements
+
+- [ ] Each color component should be a separate route (e.g., `/colors/red`, `/colors/blue`)
+- [ ] Use nested routes with `Outlet` for the layout
+- [ ] Add a navigation bar with `Link` components

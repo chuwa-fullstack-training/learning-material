@@ -1,3 +1,12 @@
+/**
+ * 🔴 Perception Phase — Predict by hand first. NO running, NO AI.
+ * For each snippet, write what you think will be output and why.
+ *
+ * Submit `learning-log.md`:
+ *   - Where did your mental model of scope fail?
+ *   - Which `var` quirk surprised you?
+ */
+
 // Below are some JavaScript scope related questions.
 
 // 1. When executed, what value will be output?

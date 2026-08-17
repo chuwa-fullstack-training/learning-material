@@ -1,3 +1,16 @@
+/**
+ * 🔴 Perception Phase — Strictly NO AI, NO running the code first.
+ * Predict the order on paper. The whole point is building the Event Loop mental model.
+ *
+ * Two-step submission:
+ *   1. Write predicted output with a 1-line reason (which queue? microtask vs macrotask?).
+ *   2. Run to verify.
+ *
+ * Submit `learning-log.md`:
+ *   - Where did you confuse microtask vs macrotask?
+ *   - In snippet 1, why does `reject('f')` after `resolve('d')` have no effect?
+ */
+
 // what is the output in order? and explain why?
 
 // 1

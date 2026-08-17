@@ -1,4 +1,12 @@
 /**
+ * 🟢 Leverage Phase — AI OK for HTTP server boilerplate, but you must understand:
+ *   - How the request flows: receive → parse URL → route → write response headers → write body → end.
+ *   - Why `Content-Type` and `writeHead` matter.
+ *
+ * If AI-generated: add a comment to each key line explaining what it does.
+ */
+
+/**
  * Implement a HTTP server that serves JSON data where user requests /api/parsetime and /api/unixtime.
  * For example, when the user requests /api/parsetime?iso=2023-05-22T12:34:56.789Z, the server should
  * respond with a JSON object containing only 'hour', 'minute' and 'second' properties.

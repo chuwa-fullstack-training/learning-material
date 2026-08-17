@@ -1,3 +1,12 @@
+/**
+ * 🟡 Understanding Phase — compose promises sequentially.
+ * (Async review — ensure L5 is still solid before doing this.)
+ *
+ * Submit `learning-log.md`:
+ *   - Why does the reduce-based sequential pattern work?
+ *   - Contrast with Promise.all — what would go wrong if you used it here?
+ */
+
 // 1. use `promise` to print 1, 2, 3 in every 1 second
 function print() {
   // your code here

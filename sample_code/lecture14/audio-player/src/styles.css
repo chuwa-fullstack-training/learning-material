@@ -1,0 +1,77 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 480px;
+  margin: 2rem auto;
+}
+
+.player {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.player__cover {
+  border-radius: 8px;
+}
+
+.player--error {
+  color: #b91c1c;
+}
+
+.player__error-detail {
+  font-size: 0.85rem;
+  color: #7f1d1d;
+}
+
+.player__tags {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.player__tag {
+  font-size: 0.75rem;
+  background: #eef2ff;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+.player__progress,
+.player__volume {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.player__progress input,
+.player__volume input {
+  flex: 1;
+}
+
+.track-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 1.5rem;
+}
+
+.track-list__item button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.track-list__item img {
+  border-radius: 4px;
+}
+
+.track-list__item.active button {
+  background: #eef2ff;
+}

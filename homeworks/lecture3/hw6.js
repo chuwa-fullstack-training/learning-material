@@ -1,4 +1,15 @@
 /**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Try a naive O(n²) solution first, then optimize using Map/frequency counting.
+ * Feeling your first solution be slow IS the learning.
+ *
+ * Submit `learning-log.md`:
+ *   - Your first approach and its time complexity.
+ *   - Your optimized approach and why it's faster.
+ *   - What higher-order array method (map/filter/reduce) would you use for removeVowels?
+ */
+
+/**
  * Given an array of integers nums, return the number of good pairs.
  * A pair (i, j) is called good if nums[i] == nums[j] and i < j.
  *

@@ -1,3 +1,17 @@
+/**
+ * 🔴 Perception Phase — Strictly NO AI, NO running the code.
+ * This is a classic interview question. You MUST predict the output and execution order
+ * on paper / in a comment, in your head — the value of this homework is simulating the Event Loop yourself.
+ *
+ * Two-step submission:
+ *   1. Write your predicted output + a one-line explanation next to each snippet.
+ *   2. THEN run the code to verify. DO NOT skip step 1.
+ *
+ * Submit `learning-log.md`:
+ *   - Which snippet broke your mental model?
+ *   - Explain the `var` vs `let` difference using the closure-over-loop-variable concept.
+ */
+
 // what is the output of the following code? and explain why?
 
 // 1

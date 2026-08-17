@@ -1,4 +1,13 @@
 /**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Sequence vs parallel is a key async pattern distinction.
+ *
+ * Submit `learning-log.md`:
+ *   - How does your solution enforce sequential order? (hint: reduce + chained `then`)
+ *   - Contrast: Promise.all runs in parallel — when would sequence be the right choice?
+ */
+
+/**
  * write a function to have an arbitrary number of promises run in sequence
  * and return an array of the results
  * @param {string[]} urls - an array of urls

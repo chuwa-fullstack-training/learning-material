@@ -1,3 +1,14 @@
+/**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Write the prototype version by hand BEFORE the ES6 class version.
+ * Feeling the verbosity of prototype is what makes you appreciate `class`.
+ *
+ * Submit `learning-log.md`:
+ *   - Explain the difference between `__proto__` and `prototype`.
+ *   - Why does `Triangle.prototype = Object.create(Shape.prototype)` work but
+ *     `Triangle.prototype = Shape.prototype` break things?
+ */
+
 function Shape() {
     this.type = 'shape';
 }

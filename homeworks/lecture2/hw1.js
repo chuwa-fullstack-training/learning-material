@@ -1,3 +1,16 @@
+/**
+ * 🔴 Perception Phase — Do NOT use AI to generate code.
+ * Object operations are fundamental muscle memory. You need to get stuck and debug yourself.
+ *
+ * Submit `learning-log.md` alongside your code, answering:
+ *   1. Where did you get stuck? (be specific)
+ *   2. What did you try?
+ *   3. How did you finally solve it?
+ *   4. What did you learn?
+ *
+ * After completing, you MAY use AI to verify your understanding.
+ */
+
 /*
 * Copy the enumerable properties of p to o, and return o.
 * If o and p have a property by the same name, o's property is overwritten.

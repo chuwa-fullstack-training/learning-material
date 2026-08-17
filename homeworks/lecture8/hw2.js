@@ -1,4 +1,10 @@
 /**
+ * 🟡 Understanding Phase — AI OK for fetch/Promise boilerplate, but understand:
+ *   - Why sequential awaits here (not Promise.all) — the spec says "in order".
+ *   - How to narrow a large API response down to just the fields you care about.
+ */
+
+/**
  * https://hn.algolia.com/api
  *
  * write a router function that takes two query parameters: query1 and query2

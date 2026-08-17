@@ -1,0 +1,73 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 640px;
+  margin: 2rem auto;
+}
+
+.navbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.navbar button:first-of-type {
+  margin-left: auto;
+}
+
+.login-page {
+  max-width: 320px;
+}
+
+.login-page form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.login-page__error {
+  color: #b91c1c;
+}
+
+.category-filter {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.category-filter button.active {
+  background: #eef2ff;
+  font-weight: bold;
+}
+
+.habit-list {
+  list-style: none;
+  padding: 0;
+}
+
+.habit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.habit-list--compact .habit-item {
+  padding: 0.15rem 0;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.habit-item__category {
+  font-size: 0.75rem;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+.habit-item__streak {
+  margin-left: auto;
+}
