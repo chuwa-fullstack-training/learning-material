@@ -1,0 +1,89 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 900px;
+  margin: 2rem auto;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+}
+
+.movie-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.movie-card {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.movie-card img {
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.movie-card.active {
+  background: #eef2ff;
+}
+
+.movie-card__meta,
+.movie-card__stats {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.movie-detail__header {
+  display: flex;
+  gap: 1rem;
+}
+
+.movie-detail__header img {
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.movie-detail__genres {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.movie-detail__placeholder {
+  color: #777;
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 400px;
+  margin-bottom: 1rem;
+}
+
+.review-form__error {
+  color: #b91c1c;
+}
+
+.review-list {
+  list-style: none;
+  padding: 0;
+}
+
+.review {
+  border-bottom: 1px solid #eee;
+  padding: 0.5rem 0;
+}
+
+.review__header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.review-list__empty {
+  color: #777;
+}
