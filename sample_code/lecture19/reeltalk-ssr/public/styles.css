@@ -1,0 +1,47 @@
+/* Minimal styling for the SSR-rendered movie detail page. This project is
+   intentionally independent of reeltalk's CSS Modules setup (see that
+   project's README for why) — plain global CSS keeps this harness free of
+   any build-step styling tooling, matching the "no bundler beyond esbuild
+   for the client bundle" scoping decision for this SSR demo. */
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 640px;
+  margin: 2rem auto;
+  background: #12121a;
+  color: #f0f0f5;
+}
+
+.movie-detail__header {
+  display: flex;
+  gap: 1rem;
+}
+
+.movie-detail__header img {
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.movie-detail__meta,
+.movie-detail__genres {
+  font-size: 0.85rem;
+  color: #b0b0c0;
+}
+
+.movie-detail__empty {
+  color: #b0b0c0;
+}
+
+.review-list {
+  list-style: none;
+  padding: 0;
+}
+
+.review {
+  border-bottom: 1px solid #2a2a35;
+  padding: 0.5rem 0;
+}
+
+.review__header {
+  display: flex;
+  justify-content: space-between;
+}

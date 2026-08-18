@@ -1,0 +1,20 @@
+{
+  "name": "reeltalk-ssr",
+  "version": "0.1.0",
+  "description": "Hand-rolled Express + React 18 SSR harness for App C's movie detail page, Lecture 19",
+  "type": "module",
+  "scripts": {
+    "build:client": "esbuild src/client.js --bundle --format=esm --outdir=public --out-extension:.js=.js --outbase=src",
+    "dev": "npm run build:client && node --watch src/server.js",
+    "start": "npm run build:client && node src/server.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}
