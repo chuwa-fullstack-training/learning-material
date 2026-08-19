@@ -1,0 +1,23 @@
+{
+  "name": "reeltalk-api",
+  "version": "0.3.0",
+  "description": "Backend for App C (ReelTalk movie review platform) — L20 adds an SSE summary endpoint and a raw WebSocket review broadcast alongside the existing GraphQL layer",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@apollo/server": "^4.10.0",
+    "@graphql-tools/schema": "^10.0.0",
+    "cors": "^2.8.5",
+    "dataloader": "^2.2.2",
+    "express": "^4.18.2",
+    "graphql": "^16.8.1",
+    "graphql-subscriptions": "^2.0.0",
+    "graphql-ws": "^5.14.3",
+    "ws": "^8.16.0"
+  }
+}

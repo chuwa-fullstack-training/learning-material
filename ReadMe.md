@@ -6,7 +6,7 @@ Slides, homework, and sample codes will be uploaded here.
 
 # Course Outline
 
-The training is organized into 17 lectures, moving from JavaScript fundamentals through backend development into React. Slide decks live in `pre_slides/` (source) and `slides/` (rendered PDF); runnable examples for each lecture live under `sample_code/lectureN/`.
+The training is organized into 20 lectures, moving from JavaScript fundamentals through backend development into React and modern front-end topics (GraphQL, rendering strategies, real-time). Slide decks live in `pre_slides/` (source) and `slides/` (rendered PDF); runnable examples for each lecture live under `sample_code/lectureN/`.
 
 | Lecture | Topics |
 |---|---|
@@ -27,8 +27,11 @@ The training is organized into 17 lectures, moving from JavaScript fundamentals 
 | L15 | React Router + performance optimization: nested routes, Protected Routes, `lazy`/`memo` |
 | L16 | State management: Redux (native → Toolkit), Context API, when to use what |
 | L17 | Fullstack integration + TypeScript + testing + AI workflow |
+| L18 | GraphQL: queries/mutations/subscriptions, cursor pagination, N+1 & DataLoader, Apollo Client caching |
+| L19 | Rendering strategies (CSR/SSR/SSG/RSC), hand-written SSR, styling architecture (CSS Modules, design tokens, theming) |
+| L20 | Real-time: Server-Sent Events, raw WebSocket, and how they compare to GraphQL subscriptions |
 
-See the "Final Project" section below for what comes after L17.
+See the "Final Project" section below for what comes after L20.
 
 # Homework
 
