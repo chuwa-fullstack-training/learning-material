@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 6 — TypeScript</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–5) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Prototype-style small diagram (reused for compact flows) */
+.proto-diagram { flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:28px; }
+.proto-row { display:flex;align-items:center;gap:0; }
+.pc-box { background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 24px;font-family:var(--font-mono);text-align:center;min-width:220px; }
+.pc-box .pcn { font-size:22px;font-weight:700;margin-bottom:6px; }
+.pc-box .pct { font-size:15px;color:var(--fg-faint);margin-bottom:6px; }
+.pc-box .pcp { font-size:16px;color:var(--fg-dim);line-height:1.7; }
+.pc-box.b-orange { border-color:rgba(255,158,100,0.5); } .pc-box.b-orange .pcn { color:var(--orange); }
+.pc-box.b-blue   { border-color:rgba(122,162,247,0.5); } .pc-box.b-blue .pcn   { color:var(--blue); }
+.pc-box.b-teal   { border-color:rgba(115,218,202,0.5); } .pc-box.b-teal .pcn   { color:var(--teal); }
+.pc-box.b-green  { border-color:rgba(158,206,106,0.5); } .pc-box.b-green .pcn  { color:var(--green); }
+.pc-box.b-purple { border-color:rgba(187,154,247,0.5); } .pc-box.b-purple .pcn { color:var(--purple); }
+.pc-box.b-red    { border-color:rgba(247,118,142,0.5); } .pc-box.b-red .pcn    { color:var(--red); }
+.pc-box.b-null   { border-color:var(--border-soft); opacity:0.5; }
+.pc-arr { display:flex;flex-direction:column;align-items:center;padding:0 10px;gap:4px;flex-shrink:0; }
+.pc-arr .pc-label { font-family:var(--font-mono);font-size:15px;color:var(--fg-faint); }
+.pc-arr .pc-line  { color:var(--cyan);font-size:26px;letter-spacing:-4px; }
+.pc-down { text-align:center;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);padding:4px 0; }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === Shared additions: rendering pipeline / compact utility grid (used by lecture5+) === */
+.pipeline { display:flex;align-items:center;flex:1;min-height:0;gap:0; }
+.pipe-step { flex:1;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px 22px;text-align:center;display:flex;flex-direction:column;gap:10px; }
+.pipe-step .pipe-icon { font-size:34px; }
+.pipe-step .pipe-name { font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--fg); }
+.pipe-step .pipe-desc { font-size:16px;color:var(--fg-dim);line-height:1.4; }
+.pipe-arrow { flex:0 0 56px;text-align:center;font-size:30px;color:var(--fg-faint); }
+.pipe-step.p-blue   { border-color:rgba(122,162,247,0.5); } .pipe-step.p-blue .pipe-name   { color:var(--blue); }
+.pipe-step.p-cyan   { border-color:rgba(125,207,255,0.5); } .pipe-step.p-cyan .pipe-name   { color:var(--cyan); }
+.pipe-step.p-orange { border-color:rgba(255,158,100,0.5); } .pipe-step.p-orange .pipe-name { color:var(--orange); }
+.pipe-step.p-teal   { border-color:rgba(115,218,202,0.5); } .pipe-step.p-teal .pipe-name   { color:var(--teal); }
+.pipe-step.p-purple { border-color:rgba(187,154,247,0.5); } .pipe-step.p-purple .pipe-name { color:var(--purple); }
+
+/* === LECTURE 6 ADDITIONS: compact utility-type grid === */
+.util-grid { display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;flex:1;min-height:0; }
+.util-card { background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px 20px;display:flex;flex-direction:column;gap:8px; }
+.util-card .un { font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--cyan); }
+.util-card .ud { font-size:15px;color:var(--fg-dim);line-height:1.4; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ tsc lecture6.ts</span></div>
+            <div class="term-out">› Loading: types · generics · utility types · real-world patterns</div>
+            <div class="section-num">Lecture 06</div>
+            <h1><span class="hl">TypeScript</span></h1>
+            <div class="by">// JavaScript Foundations, Compiled<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Basic types by hand, advanced types can reference AI.</b> Basic type annotations (string, number, interface) must be hand-written. Generics and utility types (Partial, Pick, etc.) — try yourself first, then reference AI's implementation.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overview.ts</div>
+        <div class="breadcrumb">lecture06 / <b>topics-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal"><span class="hl">TypeScript</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>🧩 What is TypeScript?</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">A <strong style="color:var(--fg);">typed superset</strong> of JavaScript that compiles down to plain JS.</p>
+            </div>
+            <div class="col-card accent-cyan">
+                <h3>💡 Why TypeScript?</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Catch entire categories of bugs <em style="color:var(--orange);">before</em> you ever run the code.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>⚖️ TS vs. JS</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Compiled vs. interpreted, static vs. dynamic — what actually changes day to day.</p>
+            </div>
+            <div class="col-card accent-green">
+                <h3>🏗️ The Type System</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Primitives, unions, guards, aliases, interfaces — the vocabulary you'll use everywhere.</p>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🧬 Generics &amp; Utility Types</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Write code once that stays type-safe across many shapes.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🛠️ Real-World Patterns</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">DTOs, discriminated results, and a service → controller flow you'll actually build.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture06</div><div class="spacer"></div><div class="seg right">02 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · WHAT IS TYPESCRIPT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">what-is-ts</div>
+        <div class="breadcrumb">lecture06 / <b>what-is-typescript</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pitch</div>
+        <h2 class="title reveal">What Is <span class="hl">TypeScript</span>?</h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>TypeScript is a <strong>superset</strong> of JavaScript — every valid JS file is already valid TS</li>
+                    <li>It's a <strong>strongly typed</strong> language layered on top of JS's dynamic types</li>
+                    <li>It <strong>compiles</strong> ("transpiles") down to plain JavaScript — browsers and Node never see TS directly</li>
+                </ul>
+            </div>
+            <div class="reveal" style="display:flex;align-items:center;justify-content:center;">
+                <svg viewBox="0 0 700 700" width="100%" height="480" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="350" cy="350" r="320" fill="rgba(122,162,247,0.10)" stroke="#7aa2f7" stroke-width="2.5"/>
+                  <circle cx="350" cy="350" r="215" fill="rgba(125,207,255,0.12)" stroke="#7dcfff" stroke-width="2.5"/>
+                  <circle cx="350" cy="350" r="110" fill="rgba(255,158,100,0.16)" stroke="#ff9e64" stroke-width="2.5"/>
+                  <text x="350" y="82" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="700" fill="#7aa2f7">TypeScript</text>
+                  <text x="350" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#7dcfff">ES2015+</text>
+                  <text x="350" y="345" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#ff9e64">ES5</text>
+                  <text x="350" y="372" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">valid JS runs unchanged</text>
+                </svg>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:8px;">Types are <b>erased</b> at compile time — they exist only to help you and your tools, never at runtime.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">what-is-ts</div><div class="spacer"></div><div class="seg right">03 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · WHY TYPESCRIPT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why-typescript.ts</div>
+        <div class="breadcrumb">lecture06 / <b>why-typescript</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pitch, in code</div>
+        <h2 class="title reveal">Why <span class="hl">TypeScript</span>?</h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ why-typescript.js — fails silently, at runtime</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">why-typescript.js</div>
+                    <pre><span class="tok-kw">function</span> <span class="tok-fn">normalizeTS</span><span class="tok-pun">(</span>message<span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> message<span class="tok-pun">.</span><span class="tok-fn">toLowerCase</span><span class="tok-pun">();</span>
+<span class="tok-pun">}</span>
+normalizeTS<span class="tok-pun">(</span><span class="tok-num">42</span><span class="tok-pun">);</span>
+<span class="tok-com">// TypeError at runtime, in production</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">✅ why-typescript.ts — fails at compile time, on your machine</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">why-typescript.ts</div>
+                    <pre><span class="tok-kw">function</span> <span class="tok-fn">normalizeTS</span><span class="tok-pun">(</span>message<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> message<span class="tok-pun">.</span><span class="tok-fn">toLowerCase</span><span class="tok-pun">();</span>
+<span class="tok-pun">}</span>
+normalizeTS<span class="tok-pun">(</span><span class="tok-num">42</span><span class="tok-pun">);</span>
+<span class="tok-out">// ❌ Argument of type 'number' is not</span>
+<span class="tok-out">//    assignable to parameter of type 'string'</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;"><b>Type safety</b> · better tooling (autocomplete, refactors) · scales to large codebases · stays 100% compatible with existing JS.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why-typescript.ts</div><div class="spacer"></div><div class="seg right">04 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · TS VS JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture06 / <b>ts-vs-js</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">side by side</div>
+        <h2 class="title reveal">TypeScript <span class="hl">vs.</span> JavaScript</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th></th><th>TypeScript</th><th>JavaScript</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Execution</strong></td><td>Compiled (to JS)</td><td>Interpreted directly</td></tr>
+                <tr><td><strong>Typing</strong></td><td>Static — checked before running</td><td>Dynamic — checked while running</td></tr>
+                <tr><td><strong>Errors</strong></td><td>Caught at <strong>compile time</strong></td><td>Surface at <strong>runtime</strong></td></tr>
+                <tr><td><strong>Browser use</strong></td><td>Transpiled to JS first</td><td>Runs directly, no build step</td></tr>
+                <tr><td><strong>Verbosity</strong></td><td>More verbose (annotations)</td><td>Less verbose</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">Every browser and Node runtime only ever executes <b>JavaScript</b> — TypeScript is a development-time layer that disappears before your code runs.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">05 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · INSTALL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture06 / <b>install-typescript</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">getting set up</div>
+        <h2 class="title reveal">Install <span class="hl">TypeScript</span></h2>
+        <p class="lead-in reveal">typescriptlang.org/download</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">npm</span> i -D typescript ts-node <span class="tok-pun">@</span>types/node
+<span class="tok-fn">npx</span> tsc --init</pre>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">Prefer a <b>local</b> install + <code class="icode">npx</code> over a global install — it keeps builds reproducible across machines and CI.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">06 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · COMPILE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture06 / <b>compile-typescript</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">source → JS</div>
+        <h2 class="title reveal">Compile <span class="hl">TypeScript</span></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">tsc</span> &lt;filename&gt;.ts</pre>
+        </div>
+        <ul class="list reveal" style="margin-top:8px;">
+            <li>Compile once: <code class="icode">npx tsc</code></li>
+            <li>Watch mode: <code class="icode">npx tsc -w</code></li>
+            <li>Run in Node, no build step: <code class="icode">npx ts-node src/index.ts</code></li>
+            <li>Production: <code class="icode">npx tsc --project tsconfig.json</code> then <code class="icode">node dist/index.js</code></li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">Keep <code class="icode">strict</code> mode on in CI so type errors can't silently regress.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">07 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · TSCONFIG RECOMMENDED ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tsconfig.json</div>
+        <div class="breadcrumb">lecture06 / <b>tsconfig-recommended</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">project configuration</div>
+        <h2 class="title reveal" style="font-size:58px;">tsconfig.json — <span class="hl">Recommended</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">tsconfig.json</div>
+            <pre><span class="tok-pun">{</span>
+  <span class="tok-cls">"compilerOptions"</span><span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-cls">"target"</span><span class="tok-pun">:</span> <span class="tok-str">"ES2022"</span><span class="tok-pun">,</span> <span class="tok-cls">"module"</span><span class="tok-pun">:</span> <span class="tok-str">"CommonJS"</span><span class="tok-pun">,</span>
+    <span class="tok-cls">"lib"</span><span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-str">"ES2022"</span><span class="tok-pun">,</span> <span class="tok-str">"DOM"</span><span class="tok-pun">],</span> <span class="tok-cls">"moduleResolution"</span><span class="tok-pun">:</span> <span class="tok-str">"node"</span><span class="tok-pun">,</span>
+
+    <span class="tok-cls">"rootDir"</span><span class="tok-pun">:</span> <span class="tok-str">"src"</span><span class="tok-pun">,</span> <span class="tok-cls">"outDir"</span><span class="tok-pun">:</span> <span class="tok-str">"dist"</span><span class="tok-pun">,</span> <span class="tok-cls">"sourceMap"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+
+    <span class="tok-cls">"strict"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> <span class="tok-cls">"noImplicitAny"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> <span class="tok-cls">"strictNullChecks"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+    <span class="tok-cls">"noUncheckedIndexedAccess"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> <span class="tok-cls">"noImplicitOverride"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+
+    <span class="tok-cls">"esModuleInterop"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> <span class="tok-cls">"skipLibCheck"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span>
+  <span class="tok-pun">},</span>
+  <span class="tok-cls">"include"</span><span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-str">"src"</span><span class="tok-pun">],</span> <span class="tok-cls">"exclude"</span><span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-str">"node_modules"</span><span class="tok-pun">,</span> <span class="tok-str">"dist"</span><span class="tok-pun">]</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tsconfig.json</div><div class="spacer"></div><div class="seg right">08 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · TSCONFIG WHY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tsconfig.json</div>
+        <div class="breadcrumb">lecture06 / <b>tsconfig-why</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">every option, justified</div>
+        <h2 class="title reveal" style="font-size:58px;">tsconfig.json — <span class="hl">Why These Options?</span></h2>
+        <ul class="list reveal">
+            <li><code class="icode">target</code> / <code class="icode">module</code> — match your runtime (Node 18+ can use ES2022; CommonJS for many Node backends)</li>
+            <li><code class="icode">rootDir</code> / <code class="icode">outDir</code> — keep TS source and compiled JS output cleanly separated</li>
+            <li><code class="icode">sourceMap</code> — enables debugging the original TS in your IDE and Node inspector</li>
+            <li>the <code class="icode">strict</code> family — catch more bugs at compile time; enable by default, dial back only if needed</li>
+            <li><code class="icode">esModuleInterop</code> — smooth interop when importing CommonJS packages</li>
+            <li><code class="icode">skipLibCheck</code> — speeds up builds; keep it on unless debugging a type package itself</li>
+        </ul>
+        <div class="note reveal" style="margin-top:16px;">Tip: <code class="icode">sample_code/lecture6/tsconfig.json</code> exists — compare and evolve it toward this when building a real app or service.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tsconfig.json</div><div class="spacer"></div><div class="seg right">09 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SECTION DIVIDER: TYPE SYSTEM ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">types.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture06</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">The Type <span class="hl">System</span></div>
+            <div class="by" style="margin-top:18px;">primitives · unions · guards · aliases · interfaces<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 11 · TYPESCRIPT TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">types.ts</div>
+        <div class="breadcrumb">lecture06 / <b>typescript-types</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the vocabulary</div>
+        <h2 class="title reveal">TypeScript <span class="hl">Types</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>Everyday primitives</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Boolean, Number, String</li>
+                    <li style="font-size:22px;">Array — <code class="icode">number[]</code> / <code class="icode">Array&lt;number&gt;</code></li>
+                    <li style="font-size:22px;">Tuple — <code class="icode">[string, number]</code></li>
+                    <li style="font-size:22px;">Enum — prefer string literal unions (<code class="icode">'up'|'down'</code>) for serialized values instead</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>Special types</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Object</li>
+                    <li style="font-size:22px;"><code class="icode">any</code> — escape hatch, avoid it</li>
+                    <li style="font-size:22px;"><code class="icode">unknown</code> — safe top type, must narrow first</li>
+                    <li style="font-size:22px;"><code class="icode">void</code>, <code class="icode">null</code> &amp; <code class="icode">undefined</code></li>
+                    <li style="font-size:22px;"><code class="icode">never</code> — unreachable, no value exists</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">types.ts</div><div class="spacer"></div><div class="seg right">11 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · TYPE ASSERTION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">assertion.ts</div>
+        <div class="breadcrumb">lecture06 / <b>type-assertion</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">"trust me" — the `as` keyword</div>
+        <h2 class="title reveal">Type <span class="hl">Assertion</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Tells the compiler "I know this value's type better than you inferred"</li>
+                    <li>Doesn't perform any runtime check or conversion — purely a compile-time instruction</li>
+                    <li>Use sparingly: it can hide real type errors if you're wrong</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">assertion.ts</div>
+                <pre><span class="tok-kw">const</span> message <span class="tok-op">=</span> <span class="tok-str">'Hello World'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> length <span class="tok-op">=</span> <span class="tok-pun">(</span>message <span class="tok-kw">as</span> <span class="tok-cls">string</span><span class="tok-pun">).</span>length<span class="tok-pun">;</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">assertion.ts</div><div class="spacer"></div><div class="seg right">12 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · TYPES UNION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">union.ts</div>
+        <div class="breadcrumb">lecture06 / <b>types-union</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">type1 | type2</div>
+        <h2 class="title reveal">Types <span class="hl">Union</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A value can be <strong>one of several types</strong>, joined with <code class="icode">|</code></li>
+                    <li>Literal unions constrain to exact values — great for known option sets</li>
+                    <li>Before using type-specific members, you must <strong>narrow</strong> the union first</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">union.ts</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">printId</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-cls">number</span> <span class="tok-op">|</span> <span class="tok-cls">string</span><span class="tok-pun">) {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'ID: '</span> <span class="tok-op">+</span> id<span class="tok-pun">);</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">move</span><span class="tok-pun">(</span>
+  direction<span class="tok-pun">:</span> <span class="tok-str">'up'</span> <span class="tok-op">|</span> <span class="tok-str">'down'</span> <span class="tok-op">|</span> <span class="tok-str">'left'</span> <span class="tok-op">|</span> <span class="tok-str">'right'</span>
+<span class="tok-pun">) {</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>direction<span class="tok-pun">);</span> <span class="tok-pun">}</span>
+
+<span class="tok-fn">move</span><span class="tok-pun">(</span><span class="tok-str">'up'</span><span class="tok-pun">);</span>     <span class="tok-out">// ✅</span>
+<span class="tok-fn">move</span><span class="tok-pun">(</span><span class="tok-str">'north'</span><span class="tok-pun">);</span>  <span class="tok-out">// ❌ not in the union</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">union.ts</div><div class="spacer"></div><div class="seg right">13 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · DISCRIMINATED UNION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">discriminated-union.ts</div>
+        <div class="breadcrumb">lecture06 / <b>discriminated-union</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a tag TS can switch on</div>
+        <h2 class="title reveal">Discriminated <span class="hl">Union</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Give every variant of a union a shared, literal <strong>tag field</strong> (often called <code class="icode">kind</code>)</li>
+                    <li>Once you check the tag, TypeScript narrows the whole object automatically</li>
+                    <li>This pattern comes back later for <strong style="color:var(--cyan);">typed service results</strong></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">discriminated-union.ts</div>
+                <pre><span class="tok-kw">interface</span> <span class="tok-cls">Shape</span> <span class="tok-pun">{</span>
+  kind<span class="tok-pun">:</span> <span class="tok-str">'circle'</span> <span class="tok-op">|</span> <span class="tok-str">'square'</span><span class="tok-pun">;</span>
+  radius<span class="tok-pun">?:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+  sideLength<span class="tok-pun">?:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">area</span><span class="tok-pun">(</span>s<span class="tok-pun">:</span> <span class="tok-cls">Shape</span><span class="tok-pun">):</span> <span class="tok-cls">number</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>s<span class="tok-pun">.</span>kind <span class="tok-op">===</span> <span class="tok-str">'square'</span><span class="tok-pun">) {</span>
+    <span class="tok-kw">return</span> s<span class="tok-pun">.</span>sideLength<span class="tok-op">!</span> <span class="tok-op">**</span> <span class="tok-num">2</span><span class="tok-pun">;</span>
+  <span class="tok-pun">}</span>
+  <span class="tok-kw">return</span> <span class="tok-cls">Math</span><span class="tok-pun">.</span>PI <span class="tok-op">*</span> s<span class="tok-pun">.</span>radius<span class="tok-op">!</span> <span class="tok-op">**</span> <span class="tok-num">2</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">discriminated-union.ts</div><div class="spacer"></div><div class="seg right">14 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · TYPE GUARD ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">type-guard.ts</div>
+        <div class="breadcrumb">lecture06 / <b>type-guard</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">how narrowing actually happens</div>
+        <h2 class="title reveal">Type <span class="hl">Guard</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label good">typeof — primitives</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">type-guard.ts</div>
+                    <pre><span class="tok-kw">const</span> message <span class="tok-op">=</span> <span class="tok-str">'Hello World'</span><span class="tok-pun">;</span>
+<span class="tok-kw">if</span> <span class="tok-pun">(</span><span class="tok-kw">typeof</span> message <span class="tok-op">===</span> <span class="tok-str">'string'</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> length <span class="tok-op">=</span> message<span class="tok-pun">.</span>length<span class="tok-pun">;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+                <p style="font-size:16px;color:var(--fg-faint);margin-top:8px;">works for <code class="icode">number</code>, <code class="icode">string</code>, <code class="icode">boolean</code>, <code class="icode">symbol</code></p>
+            </div>
+            <div>
+                <div class="compare-label good">instanceof — classes</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">type-guard.ts</div>
+                    <pre><span class="tok-kw">class</span> <span class="tok-cls">Point</span> <span class="tok-pun">{</span> x<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span> y<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">; }</span>
+<span class="tok-kw">const</span> point <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Point</span><span class="tok-pun">();</span>
+
+<span class="tok-kw">if</span> <span class="tok-pun">(</span>point <span class="tok-kw">instanceof</span> <span class="tok-cls">Point</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> x <span class="tok-op">=</span> point<span class="tok-pun">.</span>x<span class="tok-pun">;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">type-guard.ts</div><div class="spacer"></div><div class="seg right">15 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · NARROWING A REAL UNION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">type-guard.ts</div>
+        <div class="breadcrumb">lecture06 / <b>narrowing-a-real-union</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a shape you'll actually see</div>
+        <h2 class="title reveal">Narrowing a <span class="hl">Real Union</span></h2>
+        <p class="lead-in reveal">A query param can legitimately arrive as <code class="icode">string | string[] | null</code> — narrow it before using it.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">type-guard.ts</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">prettyPrint</span><span class="tok-pun">(</span>strs<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-op">|</span> <span class="tok-cls">string</span><span class="tok-pun">[]</span> <span class="tok-op">|</span> <span class="tok-kw">null</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>strs <span class="tok-op">===</span> <span class="tok-kw">null</span><span class="tok-pun">) {</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'null'</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">else if</span> <span class="tok-pun">(</span><span class="tok-kw">typeof</span> strs <span class="tok-op">===</span> <span class="tok-str">'string'</span><span class="tok-pun">) {</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>strs<span class="tok-pun">);</span>                <span class="tok-out">// TS knows: string</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">else</span> <span class="tok-pun">{</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>strs<span class="tok-pun">.</span><span class="tok-fn">join</span><span class="tok-pun">(</span><span class="tok-str">' + '</span><span class="tok-pun">));</span>  <span class="tok-out">// TS knows: string[]</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;"><code class="icode">Array.isArray(x)</code> narrows the same way — the array vs. object equivalent of <code class="icode">typeof</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">type-guard.ts</div><div class="spacer"></div><div class="seg right">16 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · USER-DEFINED TYPE GUARDS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">assignments.ts</div>
+        <div class="breadcrumb">lecture06 / <b>user-defined-guards</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">arg is Type</div>
+        <h2 class="title reveal">User-Defined <span class="hl">Type Guards</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A function can tell the compiler how to narrow, via an <code class="icode">arg is Type</code> return type</li>
+                    <li>Runs like an ordinary boolean check — but TS remembers the result afterward</li>
+                    <li>Use this at <strong>boundaries</strong> (API responses, <code class="icode">unknown</code> input) to convert loose data into your domain types</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">assignments.ts</div>
+                <pre><span class="tok-kw">type</span> <span class="tok-cls">Dog</span> <span class="tok-op">=</span> <span class="tok-pun">{</span> bark<span class="tok-pun">:</span> <span class="tok-pun">() =&gt;</span> <span class="tok-kw">void</span> <span class="tok-pun">};</span>
+<span class="tok-kw">type</span> <span class="tok-cls">Cat</span> <span class="tok-op">=</span> <span class="tok-pun">{</span> meow<span class="tok-pun">:</span> <span class="tok-pun">() =&gt;</span> <span class="tok-kw">void</span> <span class="tok-pun">};</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">isDog</span><span class="tok-pun">(</span>pet<span class="tok-pun">:</span> <span class="tok-cls">Dog</span> <span class="tok-op">|</span> <span class="tok-cls">Cat</span><span class="tok-pun">):</span> pet <span class="tok-kw">is</span> <span class="tok-cls">Dog</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>pet <span class="tok-kw">as</span> <span class="tok-cls">Dog</span><span class="tok-pun">).</span>bark <span class="tok-op">!==</span> <span class="tok-kw">undefined</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">if</span> <span class="tok-pun">(</span><span class="tok-fn">isDog</span><span class="tok-pun">(</span>pet<span class="tok-pun">))</span> pet<span class="tok-pun">.</span><span class="tok-fn">bark</span><span class="tok-pun">();</span>   <span class="tok-out">// TS knows: Dog</span>
+<span class="tok-kw">else</span> pet<span class="tok-pun">.</span><span class="tok-fn">meow</span><span class="tok-pun">();</span>              <span class="tok-out">// TS knows: Cat</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">assignments.ts</div><div class="spacer"></div><div class="seg right">17 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · TYPE ALIASES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">alias.ts</div>
+        <div class="breadcrumb">lecture06 / <b>type-aliases</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the `type` keyword</div>
+        <h2 class="title reveal">Type <span class="hl">Aliases</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Gives an existing type shape a reusable <strong>name</strong></li>
+                    <li>Works for object shapes, unions, primitives, tuples — anything</li>
+                    <li>Once declared, a type alias can't be re-opened and merged like an interface can</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">alias.ts</div>
+                <pre><span class="tok-kw">type</span> <span class="tok-cls">Point</span> <span class="tok-op">=</span> <span class="tok-pun">{</span>
+  x<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+  y<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-pun">};</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">alias.ts</div><div class="spacer"></div><div class="seg right">18 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · TYPE INTERFACE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">interface.ts</div>
+        <div class="breadcrumb">lecture06 / <b>type-interface</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the `interface` keyword</div>
+        <h2 class="title reveal">Type <span class="hl">Interface</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Also describes an object's shape — looks almost identical to a type alias here</li>
+                    <li>Can be <strong>extended</strong> (<code class="icode">extends</code>) and <strong>re-opened</strong> (declaration merging) — a type alias can't</li>
+                    <li>Next slide: when to reach for which</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">interface.ts</div>
+                <pre><span class="tok-kw">interface</span> <span class="tok-cls">Point</span> <span class="tok-pun">{</span>
+  x<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+  y<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">interface.ts</div><div class="spacer"></div><div class="seg right">19 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · TYPE VS INTERFACE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture06 / <b>type-vs-interface</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">when to use which</div>
+        <h2 class="title reveal" style="font-size:56px;"><code style="font-family:inherit;">type</code> <span class="hl">vs</span> <code style="font-family:inherit;">interface</code></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Feature</th><th><code>type</code></th><th><code>interface</code></th></tr></thead>
+            <tbody>
+                <tr><td><strong>Extend</strong></td><td><code>&amp;</code> (intersection)</td><td><code>extends</code> keyword</td></tr>
+                <tr><td><strong>Merge declarations</strong></td><td>No</td><td>Yes (auto-merging)</td></tr>
+                <tr><td><strong>Union types</strong></td><td>Yes (<code>A | B</code>)</td><td>No</td></tr>
+                <tr><td><strong>Primitives / tuples</strong></td><td>Yes</td><td>No</td></tr>
+                <tr><td><strong>Classes implement</strong></td><td>Yes</td><td>Yes</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">Rule of thumb: use <b>interface</b> for public APIs (libraries, contracts). Use <b>type</b> for everything else — especially unions and mapped types.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">20 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · SECTION DIVIDER: FUNCTIONS, OBJECTS & CLASSES ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">functions.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture06</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Functions, Objects <span class="hl">&amp; Classes</span></div>
+            <div class="by" style="margin-top:18px;">overloading · object types · class visibility<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 22 · TYPESCRIPT FUNCTIONS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">functions.ts</div>
+        <div class="breadcrumb">lecture06 / <b>typescript-functions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">four shapes</div>
+        <h2 class="title reveal">TypeScript <span class="hl">Functions</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong>Function type expression</strong> — <code class="icode">(a: number, b: number) =&gt; number</code></li>
+                    <li><strong>Constructor type expression</strong> — <code class="icode">new (name: string) =&gt; Person</code></li>
+                    <li><strong>Generic function</strong> — parameterized over the caller's types</li>
+                    <li><strong>Optional &amp; default parameters</strong> — next slide</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">functions.ts</div>
+                <pre><span class="tok-kw">type</span> <span class="tok-cls">Operator</span> <span class="tok-op">=</span> <span class="tok-pun">(</span>a<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">,</span> b<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">) =&gt;</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">operate</span><span class="tok-pun">(</span>a<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">,</span> b<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">,</span> op<span class="tok-pun">:</span> <span class="tok-cls">Operator</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> <span class="tok-fn">op</span><span class="tok-pun">(</span>a<span class="tok-pun">,</span> b<span class="tok-pun">);</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-fn">operate</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">,</span> <span class="tok-num">2</span><span class="tok-pun">, (</span>a<span class="tok-pun">,</span> b<span class="tok-pun">) =&gt;</span> a <span class="tok-op">+</span> b<span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">functions.ts</div><div class="spacer"></div><div class="seg right">22 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · OPTIONAL AND DEFAULT PARAMETERS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">functions.ts</div>
+        <div class="breadcrumb">lecture06 / <b>optional-default-params</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two ways to make a param optional</div>
+        <h2 class="title reveal">Optional &amp; <span class="hl">Default</span> Parameters</h2>
+        <div class="split eq reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">optional — ?</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">log</span><span class="tok-pun">(</span>
+  message<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">,</span>
+  userId<span class="tok-pun">?:</span> <span class="tok-cls">string</span>
+<span class="tok-pun">):</span> <span class="tok-kw">void</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>
+    message<span class="tok-pun">,</span> userId <span class="tok-op">||</span> <span class="tok-str">'Not signed in'</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">default value</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">log</span><span class="tok-pun">(</span>
+  message <span class="tok-op">=</span> <span class="tok-str">'logging'</span><span class="tok-pun">,</span>
+  userId<span class="tok-pun">?:</span> <span class="tok-cls">string</span>
+<span class="tok-pun">):</span> <span class="tok-kw">void</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>
+    message<span class="tok-pun">,</span> userId <span class="tok-op">||</span> <span class="tok-str">'Not signed in'</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Optional params must come <b>after</b> required ones. A default value also makes a parameter optional — and infers its type from the default.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">functions.ts</div><div class="spacer"></div><div class="seg right">23 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · FUNCTION OVERLOADING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overloading.ts</div>
+        <div class="breadcrumb">lecture06 / <b>function-overloading</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one name, multiple signatures</div>
+        <h2 class="title reveal">Function <span class="hl">Overloading</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Declare several call <strong>signatures</strong> for the same function name, then one implementation that handles them all</li>
+                    <li>The implementation signature itself is not visible to callers</li>
+                    <li>Function overloading is <em>not</em> supported in plain JavaScript</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">overloading.ts</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">len</span><span class="tok-pun">(</span>s<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">):</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">len</span><span class="tok-pun">(</span>arr<span class="tok-pun">:</span> <span class="tok-kw">any</span><span class="tok-pun">[]):</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">len</span><span class="tok-pun">(</span>x<span class="tok-pun">:</span> <span class="tok-kw">any</span><span class="tok-pun">):</span> <span class="tok-cls">number</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">return</span> x<span class="tok-pun">.</span>length<span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-fn">len</span><span class="tok-pun">(</span><span class="tok-str">'hello'</span><span class="tok-pun">);</span>       <span class="tok-out">// ✅ matches signature 1</span>
+<span class="tok-fn">len</span><span class="tok-pun">([</span><span class="tok-num">0</span><span class="tok-pun">,</span> <span class="tok-num">1</span><span class="tok-pun">,</span> <span class="tok-num">2</span><span class="tok-pun">]);</span>   <span class="tok-out">// ✅ matches signature 2</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">overloading.ts</div><div class="spacer"></div><div class="seg right">24 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · OBJECT TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">object-types.ts</div>
+        <div class="breadcrumb">lecture06 / <b>object-types</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">shaping objects precisely</div>
+        <h2 class="title reveal">Object <span class="hl">Types</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong>Optional properties</strong> — <code class="icode">side1?: number</code></li>
+                    <li><strong>Readonly properties</strong> — assignable once, never after</li>
+                    <li><strong>Excess property checks</strong> — catches typos in object literals</li>
+                    <li><strong>Index signatures</strong> — <code class="icode">[index: number]: string</code></li>
+                    <li><strong>Extending</strong> — <code class="icode">interface A extends B, C {}</code></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">object-types.ts</div>
+                <pre><span class="tok-kw">interface</span> <span class="tok-cls">Triangle</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">readonly</span> shape<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span>
+  side1<span class="tok-pun">?:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+  side2<span class="tok-pun">?:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">let</span> t<span class="tok-pun">:</span> <span class="tok-cls">Triangle</span> <span class="tok-op">=</span> <span class="tok-pun">{</span> shape<span class="tok-pun">:</span> <span class="tok-str">'triangle'</span> <span class="tok-pun">};</span>
+t<span class="tok-pun">.</span>shape <span class="tok-op">=</span> <span class="tok-str">'other'</span><span class="tok-pun">;</span>
+<span class="tok-out">// ❌ Cannot assign to 'shape' — readonly</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">object-types.ts</div><div class="spacer"></div><div class="seg right">25 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · CLASSES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">classes.ts</div>
+        <div class="breadcrumb">lecture06 / <b>classes</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">OOP, typed</div>
+        <h2 class="title reveal"><span class="hl">Classes</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong>Members</strong> — typed fields, initialized in the constructor or inline</li>
+                    <li><strong>Constructor</strong> — can be overloaded, like any function</li>
+                    <li><strong>Inheritance</strong> — <code class="icode">extends</code> / <code class="icode">implements</code></li>
+                    <li><strong>Member visibility</strong> — <code class="icode">public</code> (default), <code class="icode">protected</code>, <code class="icode">private</code></li>
+                    <li><strong>Generic classes</strong> — <code class="icode">class Box&lt;T&gt;</code></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">classes.ts</div>
+                <pre><span class="tok-kw">class</span> <span class="tok-cls">Base</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">protected</span> type<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-op">=</span> <span class="tok-str">'base'</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">class</span> <span class="tok-cls">Derived</span> <span class="tok-kw">extends</span> <span class="tok-cls">Base</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">printType</span><span class="tok-pun">():</span> <span class="tok-kw">void</span> <span class="tok-pun">{</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-kw">this</span><span class="tok-pun">.</span>type<span class="tok-pun">);</span>  <span class="tok-out">// ✅ protected</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">class</span> <span class="tok-cls">Box</span><span class="tok-op">&lt;</span><span class="tok-cls">T</span><span class="tok-op">&gt;</span> <span class="tok-pun">{</span> contents<span class="tok-pun">:</span> <span class="tok-cls">T</span><span class="tok-pun">;</span> <span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">classes.ts</div><div class="spacer"></div><div class="seg right">26 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · SECTION DIVIDER: GENERICS & REAL-WORLD PATTERNS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">generics.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture06</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Generics &amp; <span class="hl">Real-World Patterns</span></div>
+            <div class="by" style="margin-top:18px;">utility types · DTOs · service → controller<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 28 · GUIDANCE FOR WRITING GENERICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">generics.ts</div>
+        <div class="breadcrumb">lecture06 / <b>writing-good-generics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">seven guidelines</div>
+        <h2 class="title reveal">Guidance for Writing <span class="hl">Generics</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list" style="gap:12px;">
+                    <li style="font-size:24px;"><strong>1.</strong> Use multiple type params to describe all of a function's argument types</li>
+                    <li style="font-size:24px;"><strong>2.</strong> Use <code class="icode">extends</code> to constrain type parameters</li>
+                    <li style="font-size:24px;"><strong>3.</strong> Use <code class="icode">keyof</code> to describe index types</li>
+                    <li style="font-size:24px;"><strong>4.</strong> Use mapped types to describe generic objects</li>
+                    <li style="font-size:24px;"><strong>5.</strong> Use type params to relate arguments to each other</li>
+                    <li style="font-size:24px;"><strong>6.</strong> Use type params to relate return types to arguments</li>
+                    <li style="font-size:24px;"><strong>7.</strong> Use type params to describe callback shapes</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">generics.ts</div>
+                <pre><span class="tok-com">// #2 + #3: constrain with extends + keyof</span>
+<span class="tok-kw">function</span> <span class="tok-fn">getProperty</span><span class="tok-op">&lt;</span><span class="tok-cls">T</span><span class="tok-pun">,</span> <span class="tok-cls">K</span> <span class="tok-kw">extends</span> <span class="tok-kw">keyof</span> <span class="tok-cls">T</span><span class="tok-op">&gt;</span><span class="tok-pun">(</span>
+  obj<span class="tok-pun">:</span> <span class="tok-cls">T</span><span class="tok-pun">,</span> key<span class="tok-pun">:</span> <span class="tok-cls">K</span>
+<span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> obj<span class="tok-pun">[</span>key<span class="tok-pun">];</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">const</span> user <span class="tok-op">=</span> <span class="tok-pun">{</span> name<span class="tok-pun">:</span> <span class="tok-str">'John'</span><span class="tok-pun">,</span> age<span class="tok-pun">:</span> <span class="tok-num">30</span> <span class="tok-pun">};</span>
+<span class="tok-fn">getProperty</span><span class="tok-pun">(</span>user<span class="tok-pun">,</span> <span class="tok-str">'name'</span><span class="tok-pun">);</span>  <span class="tok-out">// ✅</span>
+<span class="tok-fn">getProperty</span><span class="tok-pun">(</span>user<span class="tok-pun">,</span> <span class="tok-str">'email'</span><span class="tok-pun">);</span> <span class="tok-out">// ❌ not a key of user</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">generics.ts</div><div class="spacer"></div><div class="seg right">28 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 29 · UTILITY TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">utility-types.ts</div>
+        <div class="breadcrumb">lecture06 / <b>utility-types</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">built-in generics you'll use daily</div>
+        <h2 class="title reveal">Utility <span class="hl">Types</span></h2>
+        <div class="util-grid reveal">
+            <div class="util-card"><div class="un">Partial&lt;T&gt;</div><div class="ud">every field optional — patch/update inputs</div></div>
+            <div class="util-card"><div class="un">Readonly&lt;T&gt;</div><div class="ud">every field immutable after creation</div></div>
+            <div class="util-card"><div class="un">Record&lt;K,T&gt;</div><div class="ud">an object type keyed by a union K</div></div>
+            <div class="util-card"><div class="un">Pick&lt;T,K&gt;</div><div class="ud">keep only the listed keys</div></div>
+            <div class="util-card"><div class="un">Omit&lt;T,K&gt;</div><div class="ud">drop the listed keys</div></div>
+            <div class="util-card"><div class="un">Exclude&lt;T,U&gt;</div><div class="ud">remove members of a union</div></div>
+            <div class="util-card"><div class="un">Extract&lt;T,U&gt;</div><div class="ud">keep only overlapping union members</div></div>
+            <div class="util-card"><div class="un">ReturnType&lt;T&gt;</div><div class="ud">infer a function's return type</div></div>
+        </div>
+        <div class="codeblock sm reveal" style="margin-top:8px;">
+            <div class="cb-bar">utility-types.ts</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">updatePerson</span><span class="tok-pun">(</span>person<span class="tok-pun">:</span> <span class="tok-cls">Person</span><span class="tok-pun">,</span> updates<span class="tok-pun">:</span> <span class="tok-cls">Partial</span><span class="tok-op">&lt;</span><span class="tok-cls">Person</span><span class="tok-op">&gt;</span><span class="tok-pun">):</span> <span class="tok-cls">Person</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">{</span> <span class="tok-op">...</span>person<span class="tok-pun">,</span> <span class="tok-op">...</span>updates <span class="tok-pun">};</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">utility-types.ts</div><div class="spacer"></div><div class="seg right">29 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 30 · REAL-WORLD: SHAPING DTOs ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">user.dtos.ts</div>
+        <div class="breadcrumb">lecture06 / <b>shaping-dtos</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">real-world pattern</div>
+        <h2 class="title reveal">Shaping <span class="hl">DTOs</span></h2>
+        <p class="lead-in reveal">Start from <strong>one</strong> domain type, then <em style="color:var(--orange);">derive</em> request-shaped types from it — don't hand-write them separately, or they'll drift out of sync.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">user.ts · user.dtos.ts</div>
+            <pre><span class="tok-kw">interface</span> <span class="tok-cls">User</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span> email<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span> name<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span>
+  passwordHash<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span> createdAt<span class="tok-pun">:</span> <span class="tok-cls">Date</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-com">// Create: exclude server-generated fields, require a raw password</span>
+<span class="tok-kw">type</span> <span class="tok-cls">CreateUserDto</span> <span class="tok-op">=</span> <span class="tok-cls">Omit</span><span class="tok-op">&lt;</span><span class="tok-cls">User</span><span class="tok-pun">,</span> <span class="tok-str">'id'</span> <span class="tok-op">|</span> <span class="tok-str">'createdAt'</span> <span class="tok-op">|</span> <span class="tok-str">'passwordHash'</span><span class="tok-op">&gt;</span> <span class="tok-op">&amp;</span> <span class="tok-pun">{</span>
+  password<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span>
+<span class="tok-pun">};</span>
+
+<span class="tok-com">// Update: require the id, allow everything else partial</span>
+<span class="tok-kw">type</span> <span class="tok-cls">UpdateUserDto</span> <span class="tok-op">=</span> <span class="tok-cls">Pick</span><span class="tok-op">&lt;</span><span class="tok-cls">User</span><span class="tok-pun">,</span> <span class="tok-str">'id'</span><span class="tok-op">&gt;</span> <span class="tok-op">&amp;</span>
+  <span class="tok-cls">Partial</span><span class="tok-op">&lt;</span><span class="tok-cls">Omit</span><span class="tok-op">&lt;</span><span class="tok-cls">User</span><span class="tok-pun">,</span> <span class="tok-str">'passwordHash'</span> <span class="tok-op">|</span> <span class="tok-str">'createdAt'</span><span class="tok-op">&gt;&gt;</span><span class="tok-pun">;</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">user.dtos.ts</div><div class="spacer"></div><div class="seg right">30 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 31 · REAL-WORLD: TYPED OUTCOMES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">service-result.ts</div>
+        <div class="breadcrumb">lecture06 / <b>typed-outcomes</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">real-world pattern</div>
+        <h2 class="title reveal">Typed <span class="hl">Outcomes</span></h2>
+        <p class="lead-in reveal">Recall <strong style="color:var(--cyan);">Discriminated Union</strong> from Part 1 — the same <code class="icode">kind</code> pattern models a function's outcome, so callers can't forget to handle a case.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">service-result.ts</div>
+            <pre><span class="tok-kw">interface</span> <span class="tok-cls">Ok</span><span class="tok-op">&lt;</span><span class="tok-cls">T</span><span class="tok-op">&gt;</span>    <span class="tok-pun">{</span> kind<span class="tok-pun">:</span> <span class="tok-str">'ok'</span><span class="tok-pun">;</span> data<span class="tok-pun">:</span> <span class="tok-cls">T</span> <span class="tok-pun">}</span>
+<span class="tok-kw">interface</span> <span class="tok-cls">NotFound</span> <span class="tok-pun">{</span> kind<span class="tok-pun">:</span> <span class="tok-str">'not_found'</span><span class="tok-pun">;</span> message<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-pun">}</span>
+<span class="tok-kw">interface</span> <span class="tok-cls">Failure</span>  <span class="tok-pun">{</span> kind<span class="tok-pun">:</span> <span class="tok-str">'error'</span><span class="tok-pun">;</span> error<span class="tok-pun">:</span> <span class="tok-cls">Error</span><span class="tok-pun">;</span> code<span class="tok-pun">?:</span> <span class="tok-cls">string</span> <span class="tok-pun">}</span>
+
+<span class="tok-kw">type</span> <span class="tok-cls">ServiceResult</span><span class="tok-op">&lt;</span><span class="tok-cls">T</span><span class="tok-op">&gt;</span> <span class="tok-op">=</span> <span class="tok-cls">Ok</span><span class="tok-op">&lt;</span><span class="tok-cls">T</span><span class="tok-op">&gt;</span> <span class="tok-op">|</span> <span class="tok-cls">NotFound</span> <span class="tok-op">|</span> <span class="tok-cls">Failure</span><span class="tok-pun">;</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">No <code class="icode">null</code> returns, no thrown exceptions for expected failures — the type itself lists every possible outcome.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">service-result.ts</div><div class="spacer"></div><div class="seg right">31 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 32 · SERVICE → CONTROLLER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">user.controller.ts</div>
+        <div class="breadcrumb">lecture06 / <b>service-to-controller</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">putting it together</div>
+        <h2 class="title reveal">Service <span class="hl">→</span> Controller</h2>
+        <div class="split reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">user.service.ts</div>
+                <pre><span class="tok-kw">class</span> <span class="tok-cls">UserService</span> <span class="tok-pun">{</span>
+  <span class="tok-kw">async</span> <span class="tok-fn">create</span><span class="tok-pun">(</span>dto<span class="tok-pun">:</span> <span class="tok-cls">CreateUserDto</span><span class="tok-pun">):</span>
+    <span class="tok-cls">Promise</span><span class="tok-op">&lt;</span><span class="tok-cls">ServiceResult</span><span class="tok-op">&lt;</span><span class="tok-cls">User</span><span class="tok-op">&gt;&gt;</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> user<span class="tok-pun">:</span> <span class="tok-cls">User</span> <span class="tok-op">=</span> <span class="tok-pun">{</span>
+      id<span class="tok-pun">:</span> <span class="tok-str">'u_123'</span><span class="tok-pun">,</span> email<span class="tok-pun">:</span> dto<span class="tok-pun">.</span>email<span class="tok-pun">,</span>
+      name<span class="tok-pun">:</span> dto<span class="tok-pun">.</span>name<span class="tok-pun">,</span> passwordHash<span class="tok-pun">:</span> <span class="tok-str">'hashed'</span><span class="tok-pun">,</span>
+      createdAt<span class="tok-pun">:</span> <span class="tok-kw">new</span> <span class="tok-cls">Date</span><span class="tok-pun">()</span>
+    <span class="tok-pun">};</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">{</span> kind<span class="tok-pun">:</span> <span class="tok-str">'ok'</span><span class="tok-pun">,</span> data<span class="tok-pun">:</span> user <span class="tok-pun">};</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock xs">
+                <div class="cb-bar">user.controller.ts</div>
+                <pre><span class="tok-com">// switch on `kind` — TS verifies every case is handled</span>
+<span class="tok-kw">switch</span> <span class="tok-pun">(</span>result<span class="tok-pun">.</span>kind<span class="tok-pun">) {</span>
+  <span class="tok-kw">case</span> <span class="tok-str">'ok'</span><span class="tok-pun">:</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-num">201</span><span class="tok-pun">,</span> body<span class="tok-pun">:</span> result<span class="tok-pun">.</span>data <span class="tok-pun">};</span>
+  <span class="tok-kw">case</span> <span class="tok-str">'not_found'</span><span class="tok-pun">:</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-num">404</span><span class="tok-pun">,</span> body<span class="tok-pun">:</span> <span class="tok-pun">{</span> error<span class="tok-pun">:</span> result<span class="tok-pun">.</span>message <span class="tok-pun">}</span> <span class="tok-pun">};</span>
+  <span class="tok-kw">case</span> <span class="tok-str">'error'</span><span class="tok-pun">:</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-num">500</span><span class="tok-pun">,</span> body<span class="tok-pun">:</span> <span class="tok-pun">{</span> error<span class="tok-pun">:</span> result<span class="tok-pun">.</span>error<span class="tok-pun">.</span>message <span class="tok-pun">}</span> <span class="tok-pun">};</span>
+  <span class="tok-kw">default</span><span class="tok-pun">: {</span>
+    <span class="tok-out">// ← compile error if a `kind` is ever missed</span>
+    <span class="tok-kw">const</span> _exhaustive<span class="tok-pun">:</span> <span class="tok-kw">never</span> <span class="tok-op">=</span> result<span class="tok-pun">;</span>
+    <span class="tok-kw">return</span> _exhaustive<span class="tok-pun">;</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">That <code class="icode">never</code> is the same <code class="icode">never</code> from the type list — the compiler proves the <code class="icode">switch</code> is exhaustive.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">user.controller.ts</div><div class="spacer"></div><div class="seg right">32 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 33 · ANY VS UNKNOWN VS NEVER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">types.ts</div>
+        <div class="breadcrumb">lecture06 / <b>any-unknown-never</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the three edge types</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">any</code> <span class="hl">vs</span> <code style="font-family:inherit;">unknown</code> <span class="hl">vs</span> <code style="font-family:inherit;">never</code></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Type</th><th>Meaning</th><th>When to use</th></tr></thead>
+            <tbody>
+                <tr><td><code>any</code></td><td>Escape hatch — disables type checking</td><td>Avoid in app code; OK for quick prototyping</td></tr>
+                <tr><td><code>unknown</code></td><td>Safe top type — must narrow before use</td><td>External data (API responses, user input)</td></tr>
+                <tr><td><code>never</code></td><td>Unreachable — no value exists</td><td>Exhaustive checks, functions that always throw</td></tr>
+            </tbody>
+        </table>
+        <div class="codeblock sm reveal" style="margin-top:16px;">
+            <div class="cb-bar">types.ts</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">parseJSON</span><span class="tok-pun">(</span>input<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">):</span> <span class="tok-kw">unknown</span> <span class="tok-pun">{</span> <span class="tok-kw">return</span> <span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>input<span class="tok-pun">);</span> <span class="tok-pun">}</span>
+<span class="tok-kw">const</span> data <span class="tok-op">=</span> <span class="tok-fn">parseJSON</span><span class="tok-pun">(</span><span class="tok-str">'{"x":1}'</span><span class="tok-pun">);</span>
+<span class="tok-kw">if</span> <span class="tok-pun">(</span><span class="tok-kw">typeof</span> data <span class="tok-op">===</span> <span class="tok-str">'object'</span> <span class="tok-op">&amp;&amp;</span> data <span class="tok-op">!==</span> <span class="tok-kw">null</span> <span class="tok-op">&amp;&amp;</span> <span class="tok-str">'x'</span> <span class="tok-kw">in</span> data<span class="tok-pun">) {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">((</span>data <span class="tok-kw">as</span> <span class="tok-pun">{</span> x<span class="tok-pun">:</span> <span class="tok-cls">number</span> <span class="tok-pun">}).</span>x<span class="tok-pun">);</span>  <span class="tok-out">// ✅</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">types.ts</div><div class="spacer"></div><div class="seg right">33 / 34</div></div>
+</div>
+</section>
+
+<!-- ============ 34 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture06</div>
+        <div class="breadcrumb">lecture06 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🏗️ Type System</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Primitives, unions, intersections, type guards</li>
+                    <li style="font-size:20px;"><code class="icode">type</code> vs <code class="icode">interface</code> and when to choose each</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🧬 Functions &amp; Generics</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Optional/default params, overloading</li>
+                    <li style="font-size:20px;">Generic constraints with <code class="icode">extends</code> / <code class="icode">keyof</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🧩 Utility Types</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code class="icode">Partial</code>, <code class="icode">Pick</code>, <code class="icode">Omit</code>, <code class="icode">Record</code></li>
+                    <li style="font-size:20px;"><code class="icode">any</code> vs <code class="icode">unknown</code> vs <code class="icode">never</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🛠️ Real-World Patterns</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">DTOs derived from one domain type</li>
+                    <li style="font-size:20px;">Discriminated <code class="icode">ServiceResult</code>, exhaustive <code class="icode">switch</code></li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> Node.js — server-side JavaScript
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture06</div><div class="spacer"></div><div class="seg right">34 / 34</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture6-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture6.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

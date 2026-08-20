@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 10 — RESTful API Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–9) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 10 ADDITIONS: resource card w/ URI pill === */
+.res-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:26px 28px;display:flex;flex-direction:column;gap:12px; }
+.res-card h3 { font-family:var(--font-mono);font-size:22px;font-weight:700;padding-bottom:10px;border-bottom:1px dashed var(--border); }
+.res-card .fields { font-family:var(--font-mono);font-size:15px;color:var(--fg-dim);line-height:1.7; }
+.res-uri { font-family:var(--font-mono);font-size:15px;background:var(--panel-2);color:var(--teal);padding:8px 14px;border-radius:8px;border:1px solid var(--border);align-self:flex-start; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ curl /api/books</span></div>
+            <div class="term-out">› Loading: resources · URIs · status codes · error handling</div>
+            <div class="section-num">Lecture 10</div>
+            <h1>RESTful <span class="hl">API Design</span></h1>
+            <div class="by">// Designing the Contract<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Design decisions are yours, implementation can leverage AI.</b> RESTful resource naming, status code selection, error handling strategy — these design-level decisions must be your own. Route implementation code can be AI-assisted.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overview.md</div>
+        <div class="breadcrumb">lecture10 / <b>topics-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">RESTful <span class="hl">API Design</span></h2>
+        <ul class="list reveal">
+            <li><strong style="color:var(--cyan);">RE</strong>presentational <strong style="color:var(--cyan);">S</strong>tate <strong style="color:var(--cyan);">T</strong>ransfer — a set of rules developers follow when building an API</li>
+            <li>A <strong>software architecture style</strong> for building scalable web services</li>
+            <li>REST is independent of any underlying protocol — not necessarily tied to HTTP</li>
+            <li><strong style="color:var(--orange);">Stateless</strong>: no client context is stored on the server between requests</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">A <b>REST API</b> is simply an Application Programming Interface that follows REST's principles.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">overview.md</div><div class="spacer"></div><div class="seg right">02 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · START FROM THE CLIENT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">app.js</div>
+        <div class="breadcrumb">lecture10 / <b>start-from-the-client</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the frontend's point of view</div>
+        <h2 class="title reveal">Start From <span class="hl">the Client</span></h2>
+        <p class="lead-in reveal">A frontend usually wants data like this:</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">app.js</div>
+            <pre><span class="tok-kw">const</span> response <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/books'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> books <span class="tok-op">=</span> <span class="tok-kw">await</span> response<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">();</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>books<span class="tok-pun">);</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li>Where does <code class="icode">/api/books</code> come from?</li>
+            <li>Why is it a <strong>URL</strong>? Why is the result usually <strong>JSON</strong>?</li>
+            <li>What if the book does not exist?</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">app.js</div><div class="spacer"></div><div class="seg right">03 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · API (RECAP) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">api-recap.md</div>
+        <div class="breadcrumb">lecture10 / <b>api-recap</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">before we go further</div>
+        <h2 class="title reveal">Application Programming Interface <span class="hl">(Recap)</span></h2>
+        <p class="lead-in reveal">An API is a way for two pieces of software to communicate.</p>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><code class="icode">toUpperCase()</code> vs <code class="icode">'a' ^ 0x20</code> — both APIs, one friendlier</li>
+                    <li><code class="icode">fetch()</code> is a <strong>browser</strong> API</li>
+                    <li><code class="icode">/api/books</code> is a <strong style="color:var(--cyan);">web API endpoint</strong></li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>In this course, we mainly care about</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;"><strong>Client</strong> sends an HTTP request</li>
+                    <li style="font-size:22px;"><strong>Server</strong> returns an HTTP response</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">api-recap.md</div><div class="spacer"></div><div class="seg right">04 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · USE CASE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">use-case.md</div>
+        <div class="breadcrumb">lecture10 / <b>use-case</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a real system, not a toy example</div>
+        <h2 class="title reveal">Use <span class="hl">Case</span></h2>
+        <p class="lead-in reveal">Take a real e-commerce system. Somewhere in its design are <strong style="color:var(--cyan);">resources</strong> waiting to be identified:</p>
+        <div class="cols c4 reveal">
+            <div class="res-card">
+                <h3 style="color:var(--blue);">User</h3>
+                <div class="fields">userId<br>email<br>loginStatus</div>
+                <div class="res-uri">/api/users/:id</div>
+            </div>
+            <div class="res-card">
+                <h3 style="color:var(--orange);">Product</h3>
+                <div class="fields">productId<br>productName<br>price</div>
+                <div class="res-uri">/api/products/:id</div>
+            </div>
+            <div class="res-card">
+                <h3 style="color:var(--purple);">Order</h3>
+                <div class="fields">orderId<br>status<br>customerId</div>
+                <div class="res-uri">/api/orders/:id</div>
+            </div>
+            <div class="res-card">
+                <h3 style="color:var(--teal);">ShoppingCart</h3>
+                <div class="fields">cartId<br>productId<br>quantity</div>
+                <div class="res-uri">/api/users/:id/cart</div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">🎯 <b>What kind of resource should be returned? What protocol? What data format?</b> — every REST design starts by answering these three questions.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">use-case.md</div><div class="spacer"></div><div class="seg right">05 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · API ARCHITECTURAL STYLES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">styles.md</div>
+        <div class="breadcrumb">lecture10 / <b>api-architectural-styles</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">REST is one of several options</div>
+        <h2 class="title reveal">API <span class="hl">Architectural Styles</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>📞 RPC</h3><p style="font-size:17px;color:var(--fg-dim);">Remote Procedure Call — invoke a function on another machine.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>📦 SOAP</h3><p style="font-size:17px;color:var(--fg-dim);">Simple Object Access Protocol — strict, XML-based.</p></div>
+            <div class="col-card accent-cyan" style="padding:26px 24px;border-color:var(--cyan);box-shadow:0 0 30px rgba(125,207,255,0.15);"><h3>⭐ REST</h3><p style="font-size:17px;color:var(--fg-dim);">Representational State Transfer — resource-oriented, today's focus.</p></div>
+            <div class="col-card accent-purple" style="padding:26px 24px;"><h3>🕸️ GraphQL</h3><p style="font-size:17px;color:var(--fg-dim);">Graph Query Language — one endpoint, client picks the shape.</p></div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">styles.md</div><div class="spacer"></div><div class="seg right">06 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · TERMINOLOGY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminology.md</div>
+        <div class="breadcrumb">lecture10 / <b>terminology</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">four words you'll use constantly</div>
+        <h2 class="title reveal"><span class="hl">Terminology</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>Resource</h3><p style="font-size:17px;color:var(--fg-dim);">A piece of information.</p></div>
+            <div class="col-card accent-cyan" style="padding:26px 24px;"><h3>URI</h3><p style="font-size:17px;color:var(--fg-dim);">Uniform Resource Identifier.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>Representation</h3><p style="font-size:17px;color:var(--fg-dim);">The way a resource is expressed.</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>Uniform Interface</h3><p style="font-size:17px;color:var(--fg-dim);">A consistent way to interact with resources.</p></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">The next four slides take each of these apart, one at a time.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminology.md</div><div class="spacer"></div><div class="seg right">07 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · RESOURCE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">resource.md</div>
+        <div class="breadcrumb">lecture10 / <b>resource</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the "thing" your API is about</div>
+        <h2 class="title reveal"><span class="hl">Resource</span></h2>
+        <ul class="list reveal">
+            <li>A resource is a piece of information</li>
+            <li>Can be <strong>anything</strong>: a document, a photo, a collection of other resources…</li>
+            <li>Stored on the server, represented as a stream of bits</li>
+            <li>Similar to an <strong style="color:var(--cyan);">object in OOP</strong></li>
+            <li>Identified by a <strong style="color:var(--orange);">URI</strong></li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">resource.md</div><div class="spacer"></div><div class="seg right">08 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · URI ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">uri.md</div>
+        <div class="breadcrumb">lecture10 / <b>uri</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">uniform resource identifier</div>
+        <h2 class="title reveal"><span class="hl">URI</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A string of characters that identifies a resource</li>
+                    <li>Can be a <strong>URL</strong> or a <strong>URN</strong></li>
+                    <li>Be <strong style="color:var(--cyan);">descriptive</strong> (human readable) and <strong style="color:var(--orange);">consistent</strong></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">example URIs</div>
+                <pre>http://example.com/articles/1
+http://example.com/map/roads/USA/CA/17_mile_drive
+http://example.com/courses/CS229/code.tar.gz
+http://example.com/relationships/animal/dog</pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">uri.md</div><div class="spacer"></div><div class="seg right">09 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · REPRESENTATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">representation.md</div>
+        <div class="breadcrumb">lecture10 / <b>representation</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">nouns, not verbs</div>
+        <h2 class="title reveal"><span class="hl">Representation</span></h2>
+        <ul class="list reveal">
+            <li>A resource can be represented in different ways — but a representation must refer to a <strong>unique</strong> resource</li>
+            <li>URIs need not have structure, but a consistent structure helps clients navigate (see <span style="color:var(--cyan);">api.github.com</span>)</li>
+        </ul>
+        <div class="compare reveal" style="margin-top:12px;">
+            <div>
+                <div class="compare-label good">✅ noun — identifies a resource</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">good</div>
+                    <pre>http://example.com/articles/1</pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label bad">❌ verb — describes an action</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">avoid</div>
+                    <pre>http://example.com/articles/1/delete</pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">The <b>HTTP method</b> already says what to do (<code class="icode">DELETE /articles/1</code>) — the URI just says what it's doing it <em style="color:var(--orange);">to</em>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">representation.md</div><div class="spacer"></div><div class="seg right">10 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · UNIFORM INTERFACE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">uniform-interface.md</div>
+        <div class="breadcrumb">lecture10 / <b>uniform-interface</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the same "shape" everywhere</div>
+        <h2 class="title reveal">Uniform <span class="hl">Interface</span></h2>
+        <ul class="list reveal">
+            <li><strong>Resource-based</strong>: resources are identified by URIs</li>
+            <li><strong>Manipulation</strong> of resources through representations</li>
+            <li><strong>Self-descriptive</strong> messages</li>
+            <li><em style="color:var(--orange);">Hypermedia as the Engine of Application State</em> — <strong style="color:var(--cyan);">HATEOAS</strong>
+                <ul class="list" style="margin-top:10px;">
+                    <li class="sub">Clients deliver state via body, query-string params, headers, and the requested URI</li>
+                    <li class="sub">Servers deliver state via body, response codes, and response headers</li>
+                    <li class="sub">Links are used to navigate between resources</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">uniform-interface.md</div><div class="spacer"></div><div class="seg right">11 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · SECTION DIVIDER: DESIGNING THE API ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">user-route.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture10</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Designing <span class="hl">the API</span></div>
+            <div class="by" style="margin-top:18px;">routes · status codes · common mistakes<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 13 · REST API EXAMPLE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">routers/users.js</div>
+        <div class="breadcrumb">lecture10 / <b>rest-api-example</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one resource, five methods</div>
+        <h2 class="title reveal">REST API <span class="hl">Example</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Method</th><th>Request Params</th><th>Request Body</th><th>Response Body</th></tr></thead>
+            <tbody>
+                <tr><td><code>GET</code></td><td>empty</td><td>empty</td><td>list of users</td></tr>
+                <tr><td><code>GET</code></td><td>/:id</td><td>empty</td><td>user</td></tr>
+                <tr><td><code>POST</code></td><td>empty</td><td>user</td><td>user</td></tr>
+                <tr><td><code>PUT</code></td><td>/:id</td><td>user</td><td>user</td></tr>
+                <tr><td><code>DELETE</code></td><td>/:id</td><td>empty</td><td>empty</td></tr>
+            </tbody>
+        </table>
+        <div class="codeblock xs reveal" style="margin-top:12px;">
+            <div class="cb-bar">routers/users.js</div>
+            <pre>router<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users'</span><span class="tok-pun">,</span> getAllUsers<span class="tok-pun">);</span>       router<span class="tok-pun">.</span><span class="tok-fn">post</span><span class="tok-pun">(</span><span class="tok-str">'/users'</span><span class="tok-pun">,</span> createUser<span class="tok-pun">);</span>
+router<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users/:id'</span><span class="tok-pun">,</span> getOneUser<span class="tok-pun">);</span>  router<span class="tok-pun">.</span><span class="tok-fn">put</span><span class="tok-pun">(</span><span class="tok-str">'/users/:id'</span><span class="tok-pun">,</span> updateUser<span class="tok-pun">);</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">routers/users.js</div><div class="spacer"></div><div class="seg right">13 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · HTTP STATUS CODES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">status-codes.md</div>
+        <div class="breadcrumb">lecture10 / <b>http-status-codes</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the response's headline</div>
+        <h2 class="title reveal">HTTP <span class="hl">Status Codes</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Range</th><th>Meaning</th><th>Common Codes</th></tr></thead>
+            <tbody>
+                <tr><td>1xx</td><td>Informational</td><td>—</td></tr>
+                <tr><td style="color:var(--green);">2xx</td><td>Success</td><td><code>200 OK</code> · <code>201 Created</code> · <code>204 No Content</code></td></tr>
+                <tr><td style="color:var(--cyan);">3xx</td><td>Redirection</td><td><code>301 Moved Permanently</code> · <code>302 Found</code> · <code>304 Not Modified</code></td></tr>
+                <tr><td style="color:var(--orange);">4xx</td><td>Client Error</td><td><code>400 Bad Request</code> · <code>401 Unauthorized</code> · <code>403 Forbidden</code> · <code>404 Not Found</code></td></tr>
+                <tr><td style="color:var(--red);">5xx</td><td>Server Error</td><td>—</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">status-codes.md</div><div class="spacer"></div><div class="seg right">14 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · COMMON BEGINNER MISTAKES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mistakes.md</div>
+        <div class="breadcrumb">lecture10 / <b>common-beginner-mistakes</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">easy to make, easy to avoid</div>
+        <h2 class="title reveal">Common Beginner <span class="hl">Mistakes</span></h2>
+        <ul class="list reveal">
+            <li>Using verbs in the URI — <code class="icode">/getBooks</code></li>
+            <li>Always returning <code class="icode">200</code>, even for errors</li>
+            <li>Forgetting <code class="icode">express.json()</code></li>
+            <li>Comparing a string id with a number id</li>
+            <li>Mixing query params and body without reason</li>
+            <li>Returning inconsistent JSON shapes</li>
+        </ul>
+        <div class="note warn reveal" style="margin-top:20px;">Keep the API <b>predictable</b>. Every one of these mistakes makes the frontend's job harder to reason about.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mistakes.md</div><div class="spacer"></div><div class="seg right">15 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · REST API DESIGN ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">design-steps.md</div>
+        <div class="breadcrumb">lecture10 / <b>rest-api-design</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a repeatable process</div>
+        <h2 class="title reveal">REST API <span class="hl">Design</span></h2>
+        <ul class="list reveal">
+            <li><strong>1.</strong> Figure out the data set</li>
+            <li><strong>2.</strong> Break it into resources</li>
+            <li><strong>3.</strong> Design the URIs</li>
+            <li class="sub"><strong>a.</strong> name the resources with URIs</li>
+            <li class="sub"><strong>b.</strong> expose a subset of the uniform interface (CRUD)</li>
+            <li class="sub"><strong>c.</strong> design the data in JSON</li>
+            <li class="sub"><strong>d.</strong> configure representation accepted from / served to clients</li>
+            <li class="sub"><strong>e.</strong> error handling with status codes</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">design-steps.md</div><div class="spacer"></div><div class="seg right">16 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · DISADVANTAGES OF REST ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">disadvantages.md</div>
+        <div class="breadcrumb">lecture10 / <b>disadvantages-of-rest</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">it's not perfect</div>
+        <h2 class="title reveal">Disadvantages <span class="hl">of REST</span></h2>
+        <ul class="list reveal">
+            <li>No standard</li>
+            <li>No official documentation</li>
+            <li>Not all resources fit the REST model — login, logout, etc.</li>
+            <li>Status codes need to be unified across a team</li>
+            <li><code class="icode">404</code> is ambiguous — is the interface not discoverable, or is the resource just not available?</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">disadvantages.md</div><div class="spacer"></div><div class="seg right">17 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · SUGGESTIONS WHEN DESIGNING REST API ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">suggestions.md</div>
+        <div class="breadcrumb">lecture10 / <b>suggestions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">practical guidance</div>
+        <h2 class="title reveal">Suggestions <span class="hl">When Designing</span> a REST API</h2>
+        <ul class="list reveal">
+            <li>Use <strong>plural nouns</strong> instead of verbs</li>
+            <li>Use HTTP verbs, but you don't need to use all of them</li>
+            <li>Use <strong>sub-resources</strong> for relations (e.g. <code class="icode">/users/:id/orders</code>)</li>
+            <li>A 100% RESTful API? <strong style="color:var(--red);">Impossible!</strong> Aim for consistency, not purity.</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">suggestions.md</div><div class="spacer"></div><div class="seg right">18 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · SECTION DIVIDER: TESTING, ERRORS & VERSIONING ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">error-handler.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture10</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Testing, Errors <span class="hl">&amp; Versioning</span></div>
+            <div class="by" style="margin-top:18px;">keeping an API predictable as it grows<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 20 · API TESTING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">testing.md</div>
+        <div class="breadcrumb">lecture10 / <b>api-testing</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">poke it before the frontend does</div>
+        <h2 class="title reveal">API <span class="hl">Testing</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🖱️ GUI</h3>
+                <p style="font-size:24px;color:var(--fg-dim);">Postman</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>⌨️ Terminal</h3>
+                <p style="font-size:24px;color:var(--fg-dim);">curl · httpie</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">testing.md</div><div class="spacer"></div><div class="seg right">20 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · CONSISTENT ERROR RESPONSE FORMAT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">error-handler.js</div>
+        <div class="breadcrumb">lecture10 / <b>consistent-error-format</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the frontend should never have to guess</div>
+        <h2 class="title reveal">Consistent <span class="hl">Error Response Format</span></h2>
+        <p class="lead-in reveal">Always return errors in a <strong style="color:var(--cyan);">consistent JSON shape</strong> — this makes frontend error handling predictable.</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">error-handler.js</div>
+            <pre><span class="tok-com">// ✅ Good: consistent error format</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">((</span>err<span class="tok-pun">,</span> req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span>err<span class="tok-pun">.</span>status <span class="tok-op">||</span> <span class="tok-num">500</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> success<span class="tok-pun">:</span> <span class="tok-kw">false</span><span class="tok-pun">,</span>
+    error<span class="tok-pun">:</span> <span class="tok-pun">{</span> message<span class="tok-pun">:</span> err<span class="tok-pun">.</span>message<span class="tok-pun">,</span> code<span class="tok-pun">:</span> err<span class="tok-pun">.</span>code <span class="tok-op">||</span> <span class="tok-str">'INTERNAL_ERROR'</span> <span class="tok-pun">}</span> <span class="tok-pun">});</span>
+<span class="tok-pun">});</span>
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/api/users/:id'</span><span class="tok-pun">,</span> <span class="tok-kw">async</span> <span class="tok-pun">(</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">const</span> user <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-cls">User</span><span class="tok-pun">.</span><span class="tok-fn">findById</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>params<span class="tok-pun">.</span>id<span class="tok-pun">);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>user<span class="tok-pun">) {</span>
+    <span class="tok-kw">const</span> err <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Error</span><span class="tok-pun">(</span><span class="tok-str">'User not found'</span><span class="tok-pun">);</span>
+    err<span class="tok-pun">.</span>status <span class="tok-op">=</span> <span class="tok-num">404</span><span class="tok-pun">;</span> err<span class="tok-pun">.</span>code <span class="tok-op">=</span> <span class="tok-str">'USER_NOT_FOUND'</span><span class="tok-pun">;</span>
+    <span class="tok-kw">return</span> <span class="tok-fn">next</span><span class="tok-pun">(</span>err<span class="tok-pun">);</span>
+  <span class="tok-pun">}</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">({</span> success<span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> data<span class="tok-pun">:</span> user <span class="tok-pun">});</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">error-handler.js</div><div class="spacer"></div><div class="seg right">21 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · API VERSIONING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">versioning.js</div>
+        <div class="breadcrumb">lecture10 / <b>api-versioning</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">evolving without breaking clients</div>
+        <h2 class="title reveal">API <span class="hl">Versioning</span></h2>
+        <p class="lead-in reveal">As your API evolves, you need a strategy to avoid breaking existing clients.</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">versioning.js</div>
+            <pre><span class="tok-com">// URL versioning (most common)</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api/v1/users'</span><span class="tok-pun">,</span> usersRouterV1<span class="tok-pun">);</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api/v2/users'</span><span class="tok-pun">,</span> usersRouterV2<span class="tok-pun">);</span>
+
+<span class="tok-com">// Header versioning</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">const</span> version <span class="tok-op">=</span> req<span class="tok-pun">.</span>headers<span class="tok-pun">[</span><span class="tok-str">'api-version'</span><span class="tok-pun">]</span> <span class="tok-op">||</span> <span class="tok-str">'1'</span><span class="tok-pun">;</span>
+  <span class="tok-com">// route to the appropriate handler</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">For this course, <b>URL versioning</b> (<code class="icode">/api/v1/...</code>) is sufficient. Just know the alternatives exist.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">versioning.js</div><div class="spacer"></div><div class="seg right">22 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture10</div>
+        <div class="breadcrumb">lecture10 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🏗️ REST Fundamentals</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Resource-oriented architecture</li>
+                    <li style="font-size:20px;">Uniform interface, HATEOAS</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🔢 HTTP Methods &amp; Codes</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">CRUD mapped to GET/POST/PUT/DELETE</li>
+                    <li style="font-size:20px;">Choosing the right status code</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🧭 URI Design</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Nouns not verbs, plural resources</li>
+                    <li style="font-size:20px;">Common beginner mistakes to avoid</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🛡️ Errors &amp; Versioning</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Consistent error response format</li>
+                    <li style="font-size:20px;">URL versioning (<code class="icode">/api/v1</code>)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> Authentication &amp; Authorization
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture10</div><div class="spacer"></div><div class="seg right">23 / 23</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture10-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture10.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

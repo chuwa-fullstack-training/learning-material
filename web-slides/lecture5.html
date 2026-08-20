@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 5 — Asynchronous JavaScript</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–4) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Prototype-style small diagram (reused for Promise state flow) */
+.proto-diagram { flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:28px; }
+.proto-row { display:flex;align-items:center;gap:0; }
+.pc-box { background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 24px;font-family:var(--font-mono);text-align:center;min-width:220px; }
+.pc-box .pcn { font-size:22px;font-weight:700;margin-bottom:6px; }
+.pc-box .pct { font-size:15px;color:var(--fg-faint);margin-bottom:6px; }
+.pc-box .pcp { font-size:16px;color:var(--fg-dim);line-height:1.7; }
+.pc-box.b-orange { border-color:rgba(255,158,100,0.5); } .pc-box.b-orange .pcn { color:var(--orange); }
+.pc-box.b-blue   { border-color:rgba(122,162,247,0.5); } .pc-box.b-blue .pcn   { color:var(--blue); }
+.pc-box.b-teal   { border-color:rgba(115,218,202,0.5); } .pc-box.b-teal .pcn   { color:var(--teal); }
+.pc-box.b-green  { border-color:rgba(158,206,106,0.5); } .pc-box.b-green .pcn  { color:var(--green); }
+.pc-box.b-purple { border-color:rgba(187,154,247,0.5); } .pc-box.b-purple .pcn { color:var(--purple); }
+.pc-box.b-red    { border-color:rgba(247,118,142,0.5); } .pc-box.b-red .pcn    { color:var(--red); }
+.pc-box.b-null   { border-color:var(--border-soft); opacity:0.5; }
+.pc-arr { display:flex;flex-direction:column;align-items:center;padding:0 10px;gap:4px;flex-shrink:0; }
+.pc-arr .pc-label { font-family:var(--font-mono);font-size:15px;color:var(--fg-faint); }
+.pc-arr .pc-line  { color:var(--cyan);font-size:26px;letter-spacing:-4px; }
+.pc-down { text-align:center;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);padding:4px 0; }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 5 ADDITIONS: rendering pipeline steps === */
+.pipeline { display:flex;align-items:center;flex:1;min-height:0;gap:0; }
+.pipe-step { flex:1;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px 22px;text-align:center;display:flex;flex-direction:column;gap:10px; }
+.pipe-step .pipe-icon { font-size:34px; }
+.pipe-step .pipe-name { font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--fg); }
+.pipe-step .pipe-desc { font-size:16px;color:var(--fg-dim);line-height:1.4; }
+.pipe-arrow { flex:0 0 56px;text-align:center;font-size:30px;color:var(--fg-faint); }
+.pipe-step.p-blue   { border-color:rgba(122,162,247,0.5); } .pipe-step.p-blue .pipe-name   { color:var(--blue); }
+.pipe-step.p-cyan   { border-color:rgba(125,207,255,0.5); } .pipe-step.p-cyan .pipe-name   { color:var(--cyan); }
+.pipe-step.p-orange { border-color:rgba(255,158,100,0.5); } .pipe-step.p-orange .pipe-name { color:var(--orange); }
+.pipe-step.p-teal   { border-color:rgba(115,218,202,0.5); } .pipe-step.p-teal .pipe-name   { color:var(--teal); }
+.pipe-step.p-purple { border-color:rgba(187,154,247,0.5); } .pipe-step.p-purple .pipe-name { color:var(--purple); }
+
+/* Call-stack mini frames inside the event-loop SVG */
+.priority-pill { font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:.04em; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ node lecture5.js</span></div>
+            <div class="term-out">› Loading: event loop · callbacks · promises · async/await</div>
+            <div class="section-num">Lecture 05</div>
+            <h1>Asynchronous <span class="hl">JavaScript</span></h1>
+            <div class="by">// JavaScript Foundations<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note warn reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🔴 <b>Strictly no AI.</b> The <code style="font-family:var(--font-mono);color:var(--teal);">setTimeout</code> output questions in this lecture are classic interview problems. You must be able to simulate the Event Loop execution order in your head. After completing them, you may use AI to verify your answers.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overview.js</div>
+        <div class="breadcrumb">lecture05 / <b>topics-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Asynchronous <span class="hl">JavaScript</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>🧵 Multi-tasking</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">JS is <strong style="color:var(--fg);">single-threaded</strong>. Concurrency comes from the <strong style="color:var(--fg);">event loop</strong>, not extra threads.</p>
+            </div>
+            <div class="col-card accent-cyan">
+                <h3>🔁 Event Loop</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">The mechanism that hands control back and forth between your code and the browser/Node runtime.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>📞 Callbacks</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Functions passed as arguments, run <em style="color:var(--orange);">later</em> — the original way to do async in JS.</p>
+            </div>
+            <div class="col-card accent-green">
+                <h3>🤝 Promises</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">An object representing a future value. Fixes callback hell with chaining.</p>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>✨ async / await</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Syntactic sugar over Promises — async code that <em style="color:var(--orange);">reads</em> like sync code.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🎯 The Interview Test</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Predicting <code class="icode">setTimeout</code> / <code class="icode">Promise</code> output order — a classic screening question.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture05</div><div class="spacer"></div><div class="seg right">02 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · MULTI-TASKING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">multitasking</div>
+        <div class="breadcrumb">lecture05 / <b>concurrency-models</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two strategies</div>
+        <h2 class="title reveal">What Is <span class="hl">Multi-tasking</span>?</h2>
+        <div class="split reveal" style="align-items:start;">
+            <div>
+                <p class="lead-in">Multi-tasking is the ability to run multiple tasks <em style="color:var(--orange);">at the same time</em>. Most languages achieve it one of two ways:</p>
+                <ul class="list">
+                    <li><strong>Multi-threading</strong> — spin up OS-level threads (Java, Python, Go…)</li>
+                    <li><strong>Event loop</strong> — a single thread that never blocks, and cycles through queued work (<strong style="color:var(--cyan);">JavaScript</strong>)</li>
+                </ul>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:20px;">
+                <div class="codeblock sm">
+                    <div class="cb-bar">Java — thread pool</div>
+                    <pre><span class="tok-cls">ExecutorService</span> executor <span class="tok-op">=</span>
+  <span class="tok-cls">Executors</span><span class="tok-pun">.</span><span class="tok-fn">newFixedThreadPool</span><span class="tok-pun">(</span><span class="tok-num">2</span><span class="tok-pun">);</span>
+executor<span class="tok-pun">.</span><span class="tok-fn">submit</span><span class="tok-pun">(() -&gt; {</span>
+  <span class="tok-fn">System</span><span class="tok-pun">.</span>out<span class="tok-pun">.</span><span class="tok-fn">println</span><span class="tok-pun">(</span>
+    <span class="tok-str">"Async task in Java"</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span></pre>
+                </div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">Python — asyncio (event loop)</div>
+                    <pre><span class="tok-kw">import</span> asyncio
+
+<span class="tok-kw">async def</span> <span class="tok-fn">main</span><span class="tok-pun">():</span>
+  <span class="tok-fn">print</span><span class="tok-pun">(</span><span class="tok-str">"Start"</span><span class="tok-pun">)</span>
+  <span class="tok-kw">await</span> asyncio<span class="tok-pun">.</span><span class="tok-fn">sleep</span><span class="tok-pun">(</span><span class="tok-num">2</span><span class="tok-pun">)</span>
+  <span class="tok-fn">print</span><span class="tok-pun">(</span><span class="tok-str">"End"</span><span class="tok-pun">)</span>
+
+asyncio<span class="tok-pun">.</span><span class="tok-fn">run</span><span class="tok-pun">(</span>main<span class="tok-pun">())</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">
+            JavaScript picked the <b>event loop</b> model from day one — no threads to manage, no locks, no race conditions on shared memory.
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">multitasking</div><div class="spacer"></div><div class="seg right">03 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · THREADS VS PROCESSES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">process.js</div>
+        <div class="breadcrumb">lecture05 / <b>threads-vs-processes</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">building blocks</div>
+        <h2 class="title reveal"><span class="hl">Threads</span> vs <span style="color:var(--orange);">Processes</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🏭 Process</h3>
+                <p style="font-size:23px;color:var(--fg-dim);line-height:1.55;">An instance of a running program. Has its own <strong style="color:var(--fg);">memory space</strong> — code, heap, data segment. The unit the OS allocates resources to.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>👷 Thread</h3>
+                <p style="font-size:23px;color:var(--fg-dim);line-height:1.55;">A sequence of instructions <strong style="color:var(--fg);">inside</strong> a process, executed independently. The unit the CPU actually schedules. One process can have many threads.</p>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">
+            <b>Analogy:</b> a process is a <em style="color:var(--orange);">factory</em>; threads are the <em style="color:var(--orange);">workers</em> inside it. Workers (threads) share the factory floor (memory), but each factory (process) gets its own building.
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">process.js</div><div class="spacer"></div><div class="seg right">04 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · BROWSER MULTI-PROCESS ARCHITECTURE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">chrome.arch</div>
+        <div class="breadcrumb">lecture05 / <b>browser-architecture</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">under the hood</div>
+        <h2 class="title reveal">Browser <span class="hl">Multi-Process</span> Architecture</h2>
+        <p class="lead-in reveal">In Chrome, each <strong style="color:var(--cyan);">tab is (usually) its own process</strong>. Inside every process, work is further split across dedicated threads.</p>
+        <div class="cols c4 reveal" style="gap:24px;">
+            <div class="col-card accent-blue" style="padding:26px 24px;">
+                <h3>🧭 Browser</h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.45;">The coordinator. Address bar, bookmarks, network access, talks to every other process.</p>
+            </div>
+            <div class="col-card accent-orange" style="padding:26px 24px;">
+                <h3>🖼 Renderer</h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.45;">One per tab. Runs <strong style="color:var(--fg);">HTML/CSS/JS</strong> — main thread + IO thread live here.</p>
+            </div>
+            <div class="col-card accent-teal" style="padding:26px 24px;">
+                <h3>🎨 GPU</h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.45;">Handles compositing and rasterization — shared across all tabs.</p>
+            </div>
+            <div class="col-card accent-purple" style="padding:26px 24px;">
+                <h3>🌐 Network</h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.45;">Fetches resources over the wire, independent of any single tab.</p>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:22px;">
+            🎯 <b>This is why one crashed tab doesn't take down your whole browser</b> — each tab's renderer is an isolated process.
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">chrome.arch</div><div class="spacer"></div><div class="seg right">05 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · RENDERING PIPELINE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">pipeline.js</div>
+        <div class="breadcrumb">lecture05 / <b>rendering-pipeline</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">renderer process</div>
+        <h2 class="title reveal">The <span class="hl">Rendering</span> Pipeline</h2>
+        <p class="lead-in reveal">Everything inside a tab — parsing, layout, painting, JS execution — happens in the <strong style="color:var(--cyan);">renderer process</strong>, mostly on its main thread.</p>
+        <div class="pipeline reveal" style="margin-top:12px;">
+            <div class="pipe-step p-blue"><div class="pipe-icon">📄</div><div class="pipe-name">Parse HTML</div><div class="pipe-desc">Build the DOM tree</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-cyan"><div class="pipe-icon">🎨</div><div class="pipe-name">Style</div><div class="pipe-desc">Compute CSS rules</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-orange"><div class="pipe-icon">📐</div><div class="pipe-name">Layout</div><div class="pipe-desc">Geometry &amp; position</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-teal"><div class="pipe-icon">🖌</div><div class="pipe-name">Paint</div><div class="pipe-desc">Pixels per layer</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-purple"><div class="pipe-icon">🧩</div><div class="pipe-name">Composite</div><div class="pipe-desc">Merge layers on GPU</div></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">
+            JS that blocks the main thread — a long loop, a huge synchronous computation — <b>freezes this entire pipeline</b>. That's the whole reason async patterns exist.
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">pipeline.js</div><div class="spacer"></div><div class="seg right">06 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · HOW JAVASCRIPT WORKS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">runtime.js</div>
+        <div class="breadcrumb">lecture05 / <b>how-js-works</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the JS runtime</div>
+        <h2 class="title reveal">How <span class="hl">JavaScript</span> Works</h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>JavaScript is <strong>single-threaded</strong> — one V8 instance runs on the <em style="color:var(--orange);">main thread</em></li>
+                    <li class="sub">This simplifies everything: no locks, no shared-memory races</li>
+                    <li>Almost all your code runs on that one main thread</li>
+                    <li class="sub">Exception: <strong style="color:var(--cyan);">Web Workers</strong> — a real background thread, with no shared memory access</li>
+                    <li><strong>Concurrency</strong> ≠ <strong>Parallelism</strong></li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple" style="justify-content:center;">
+                <h3>Concurrency vs Parallelism</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.6;"><strong style="color:var(--fg);">Concurrency</strong> — juggling many tasks by switching between them (what the event loop does).</p>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.6;"><strong style="color:var(--fg);">Parallelism</strong> — actually running tasks at the exact same instant on separate cores (what threads/Workers do).</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">runtime.js</div><div class="spacer"></div><div class="seg right">07 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · SECTION DIVIDER: EVENT LOOP ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">event-loop.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture05</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">The Event <span class="hl">Loop</span></div>
+            <div class="by" style="margin-top:18px;">call stack · Web APIs · microtasks · macrotasks<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 09 · EVENT LOOP EXECUTION MODEL (FLAGSHIP DIAGRAM) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-loop.js</div>
+        <div class="breadcrumb">lecture05 / <b>execution-model</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">the mental model</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:10px;">Event Loop: <span class="hl">Execution Model</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 620" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="el-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+            <marker id="el-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#ff9e64"/></marker>
+            <marker id="el-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#bb9af7"/></marker>
+          </defs>
+
+          <!-- CALL STACK (x=60-600, y=60-520) -->
+          <rect x="60" y="60" width="540" height="460" rx="9" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="330" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#7aa2f7">Call Stack</text>
+          <text x="330" y="125" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">LIFO · synchronous code</text>
+          <rect x="90" y="170" width="480" height="44" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="330" y="197" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">setTimeout(cb, 0)</text>
+          <rect x="90" y="228" width="480" height="44" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="330" y="255" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">fetchData()</text>
+          <rect x="90" y="286" width="480" height="44" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="330" y="313" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9ece6a">main()</text>
+          <text x="330" y="360" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">→ stack empties once setTimeout() returns</text>
+
+          <!-- WEB APIs (x=760-1540, y=60-260) -->
+          <rect x="760" y="60" width="780" height="200" rx="9" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1150" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#ff9e64">Web / Node APIs</text>
+          <text x="1150" y="125" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">runs OUTSIDE the JS thread</text>
+          <text x="790" y="155" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">• setTimeout / setInterval</text>
+          <text x="790" y="181" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">• fetch / XMLHttpRequest</text>
+          <text x="790" y="207" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">• DOM events (click, input…)</text>
+          <text x="790" y="233" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">• fs, timers (Node.js)</text>
+
+          <!-- CALLBACK / MACROTASK QUEUE (x=760-1540, y=320-520) -->
+          <rect x="760" y="320" width="780" height="200" rx="9" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1150" y="360" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">Callback Queue</text>
+          <text x="1150" y="385" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">setTimeout · setInterval · I/O · UI events</text>
+          <rect x="790" y="410" width="140" height="34" rx="5" fill="#232846" stroke="#453a4a"/>
+          <text x="860" y="432" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">timer</text>
+          <rect x="942" y="410" width="140" height="34" rx="5" fill="#232846" stroke="#453a4a" opacity="0.6"/>
+          <text x="1012" y="432" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">click</text>
+          <text x="790" y="478" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">→ FIFO: oldest queued callback goes first</text>
+
+          <!-- EVENT LOOP badge, sitting in the gap between Call Stack and Callback Queue -->
+          <circle cx="680" cy="420" r="34" fill="#1f2335" stroke="#73daca" stroke-width="2"/>
+          <text x="680" y="433" text-anchor="middle" font-family="JetBrains Mono" font-size="30" fill="#73daca">↻</text>
+          <text x="680" y="478" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#73daca">EVENT LOOP</text>
+
+          <!-- ARROWS -->
+          <!-- ① Call Stack -> Web APIs: register -->
+          <path d="M600,150 L755,150" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#el-c)"/>
+          <text x="678" y="135" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#7dcfff">① register()</text>
+
+          <!-- ② Web APIs -> Callback Queue -->
+          <path d="M1150,260 L1150,315" stroke="#ff9e64" stroke-width="2.5" fill="none" marker-end="url(#el-o)"/>
+          <text x="1166" y="292" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#ff9e64">② timer fires</text>
+
+          <!-- ③ Callback Queue -> (event loop) -> Call Stack, only when the stack is empty -->
+          <path d="M760,420 L718,420" stroke="#bb9af7" stroke-width="2.5" fill="none"/>
+          <path d="M646,420 L600,420" stroke="#bb9af7" stroke-width="2.5" fill="none" marker-end="url(#el-p)"/>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:10px;">
+            <b>Key rule:</b> whenever the call stack is <b style="color:var(--purple);">empty</b>, the event loop dequeues the next callback and pushes it onto the stack. <em style="color:var(--fg-faint);font-style:normal;">(Promises add a second, higher-priority queue — that's coming up in Part 2.)</em>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-loop.js</div><div class="spacer"></div><div class="seg right">09 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SYNC VS ASYNC EXAMPLE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sync-async.js</div>
+        <div class="breadcrumb">lecture05 / <b>callback-basics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">first contact</div>
+        <h2 class="title reveal">A Function Can Run <span class="hl">Twice</span>, Two Ways</h2>
+        <div class="split reveal">
+            <div>
+                <p class="lead-in">The <em style="color:var(--orange);">same function</em> can be called directly (synchronous) or handed to the browser as a callback (asynchronous, fires later on click).</p>
+                <ul class="list">
+                    <li><code class="icode">logger()</code> runs <strong>immediately</strong>, synchronously</li>
+                    <li><code class="icode">button.addEventListener(...)</code> just <strong>registers</strong> — it runs whenever (and if) the button is clicked</li>
+                </ul>
+            </div>
+            <div class="codeblock">
+                <div class="cb-bar">sync-async.js</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">logger</span><span class="tok-pun">() {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'log'</span><span class="tok-pun">);</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-com">// registered — runs LATER, on click</span>
+button<span class="tok-pun">.</span><span class="tok-fn">addEventListener</span><span class="tok-pun">(</span><span class="tok-str">'click'</span><span class="tok-pun">,</span> logger<span class="tok-pun">);</span>
+
+<span class="tok-com">// called directly — runs NOW</span>
+<span class="tok-fn">logger</span><span class="tok-pun">();</span>  <span class="tok-out">// 'log' (immediately)</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sync-async.js</div><div class="spacer"></div><div class="seg right">10 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · CALLBACKS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">callbacks.js</div>
+        <div class="breadcrumb">lecture05 / <b>async-callbacks</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the original pattern</div>
+        <h2 class="title reveal">Asynchronous <span class="hl">Callbacks</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A <strong>callback</strong> is a function passed as an argument to another function</li>
+                    <li>It's executed <em style="color:var(--orange);">after</em> the outer function completes its work</li>
+                    <li>Timers, DOM events, and Node's older APIs all use this pattern</li>
+                </ul>
+            </div>
+            <div class="codeblock">
+                <div class="cb-bar">callbacks.js</div>
+                <pre>button<span class="tok-pun">.</span><span class="tok-fn">addEventListener</span><span class="tok-pun">(</span><span class="tok-str">'click'</span><span class="tok-pun">,</span> <span class="tok-pun">() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'button clicked'</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span>
+
+<span class="tok-com">// nothing logs until a real click happens</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">callbacks.js</div><div class="spacer"></div><div class="seg right">11 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · TIMERS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">timers.js</div>
+        <div class="breadcrumb">lecture05 / <b>settimeout-setinterval</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">scheduling</div>
+        <h2 class="title reveal"><span class="hl">Timers</span></h2>
+        <p class="lead-in reveal">Timers schedule a callback to run <em style="color:var(--orange);">no earlier than</em> N milliseconds from now — the Web API queues it as a macrotask once the timer expires.</p>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>setTimeout — once</h3>
+                <div class="codeblock sm">
+                    <div class="cb-bar">once</div>
+                    <pre><span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Hello'</span><span class="tok-pun">);</span>
+<span class="tok-pun">},</span> <span class="tok-num">1000</span><span class="tok-pun">);</span></pre>
+                </div>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>setInterval — repeating</h3>
+                <div class="codeblock sm">
+                    <div class="cb-bar">repeating</div>
+                    <pre><span class="tok-kw">let</span> id <span class="tok-op">=</span> <span class="tok-fn">setInterval</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Hello'</span><span class="tok-pun">);</span>
+<span class="tok-pun">},</span> <span class="tok-num">1000</span><span class="tok-pun">);</span>
+
+<span class="tok-fn">clearInterval</span><span class="tok-pun">(</span>id<span class="tok-pun">);</span>  <span class="tok-com">// stop it</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            <b>"1000ms" is a minimum, not a guarantee.</b> If the call stack is busy, the callback waits until the stack clears — even past its delay.
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">timers.js</div><div class="spacer"></div><div class="seg right">12 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · NETWORK EVENTS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">network.js</div>
+        <div class="breadcrumb">lecture05 / <b>fetch-vs-xhr</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two APIs, one goal</div>
+        <h2 class="title reveal">Handling <span class="hl">Network</span> Events</h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label good">✅ fetch — modern, Promise-based</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">fetch.js</div>
+                    <pre><span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'https://api.github.com/users'</span><span class="tok-pun">)</span>
+  <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>response <span class="tok-op">=&gt;</span> response<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">())</span>
+  <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>data <span class="tok-op">=&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>data<span class="tok-pun">));</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label bad">❌ XMLHttpRequest — legacy, callback-based</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">xhr.js</div>
+                    <pre><span class="tok-kw">const</span> xhr <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">XMLHttpRequest</span><span class="tok-pun">();</span>
+xhr<span class="tok-pun">.</span><span class="tok-fn">open</span><span class="tok-pun">(</span><span class="tok-str">'GET'</span><span class="tok-pun">,</span> <span class="tok-str">'https://api.github.com/users'</span><span class="tok-pun">);</span>
+xhr<span class="tok-pun">.</span>onload <span class="tok-op">=</span> <span class="tok-pun">() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>xhr<span class="tok-pun">.</span>response<span class="tok-pun">);</span>
+<span class="tok-pun">};</span>
+xhr<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">();</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">Both are Web APIs — the actual network request happens outside the JS thread. <code class="icode">fetch</code> just gives you a nicer, Promise-shaped result.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">network.js</div><div class="spacer"></div><div class="seg right">13 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · CALLBACK HELL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">callback-hell.js</div>
+        <div class="breadcrumb">lecture05 / <b>nested-callbacks</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pyramid of doom</div>
+        <h2 class="title reveal">Callback <span class="hl">Hell</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Occurs when too many callbacks nest inside each other</li>
+                    <li>Code drifts right, becomes hard to <strong>read</strong> and <strong>maintain</strong></li>
+                    <li><strong style="color:var(--red);">Error handling</strong> gets duplicated at every level</li>
+                    <li>Promises (next section) exist largely to fix this</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">the pyramid of doom</div>
+                <pre>getUser<span class="tok-pun">(</span>id<span class="tok-pun">, (</span>user<span class="tok-pun">) =&gt; {</span>
+  getPosts<span class="tok-pun">(</span>user<span class="tok-pun">.</span>id<span class="tok-pun">, (</span>posts<span class="tok-pun">) =&gt; {</span>
+    getComments<span class="tok-pun">(</span>posts<span class="tok-pun">[</span><span class="tok-num">0</span><span class="tok-pun">], (</span>comments<span class="tok-pun">) =&gt; {</span>
+      getReplies<span class="tok-pun">(</span>comments<span class="tok-pun">[</span><span class="tok-num">0</span><span class="tok-pun">], (</span>replies<span class="tok-pun">) =&gt; {</span>
+        <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>replies<span class="tok-pun">);</span>
+        <span class="tok-com">// ...and it keeps going →</span>
+      <span class="tok-pun">});</span>
+    <span class="tok-pun">});</span>
+  <span class="tok-pun">});</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">callback-hell.js</div><div class="spacer"></div><div class="seg right">14 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · SECTION DIVIDER: PROMISES ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">promises.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture05</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Promises &amp; <span class="hl">async/await</span></div>
+            <div class="by" style="margin-top:18px;">states · chaining · Promise.all · error handling<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 16 · PROMISE STATES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">promises.js</div>
+        <div class="breadcrumb">lecture05 / <b>promise-states</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what is a promise?</div>
+        <h2 class="title reveal">Promises: <span class="hl">Three States</span></h2>
+        <p class="lead-in reveal">A <strong style="color:var(--cyan);">Promise</strong> is an object representing the eventual <em style="color:var(--orange);">result</em> of an async operation. It's created once, and settles exactly once.</p>
+        <div class="reveal" style="flex:1;min-height:0;margin-top:8px;">
+        <svg viewBox="0 0 1240 380" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="ps-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#9ece6a"/></marker>
+            <marker id="ps-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f7768e"/></marker>
+          </defs>
+
+          <!-- PENDING (left, vertically centered) -->
+          <rect x="60" y="120" width="320" height="150" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="220" y="163" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#ff9e64">Pending</text>
+          <text x="220" y="189" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#565f89">initial state</text>
+          <text x="220" y="219" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">operation in flight</text>
+
+          <!-- FULFILLED (top-right) -->
+          <rect x="820" y="20" width="380" height="150" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="1010" y="63" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#9ece6a">Fulfilled</text>
+          <text x="1010" y="89" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#565f89">success</text>
+          <text x="1010" y="119" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">.then() runs</text>
+
+          <!-- REJECTED (bottom-right) -->
+          <rect x="820" y="210" width="380" height="150" rx="10" fill="#1f2335" stroke="#f7768e" stroke-width="2"/>
+          <text x="1010" y="253" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#f7768e">Rejected</text>
+          <text x="1010" y="279" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#565f89">failure</text>
+          <text x="1010" y="309" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">.catch() runs</text>
+
+          <!-- ARROWS: Pending fans out to both outcomes -->
+          <path d="M382,168 L816,95" stroke="#9ece6a" stroke-width="2.5" fill="none" marker-end="url(#ps-g)"/>
+          <text x="590" y="115" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#9ece6a">resolve()</text>
+
+          <path d="M382,222 L816,285" stroke="#f7768e" stroke-width="2.5" fill="none" marker-end="url(#ps-r)"/>
+          <text x="590" y="278" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#f7768e">reject()</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:10px;">Fulfilled or Rejected = <b>Settled</b> — once settled, a Promise's outcome never changes again.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">promises.js</div><div class="spacer"></div><div class="seg right">16 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · CREATE & CHAIN ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">promise-creation.js</div>
+        <div class="breadcrumb">lecture05 / <b>create-and-chain</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">making one · using one</div>
+        <h2 class="title reveal">Create &amp; <span class="hl">Chain</span> Promises</h2>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">promise-creation.js</div>
+                <pre><span class="tok-kw">const</span> promise <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Promise</span><span class="tok-pun">((</span>resolve<span class="tok-pun">,</span> reject<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span><span class="tok-com">/* success */</span><span class="tok-pun">)</span> <span class="tok-pun">{</span>
+    <span class="tok-fn">resolve</span><span class="tok-pun">(</span><span class="tok-com">/* value */</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">else</span> <span class="tok-pun">{</span>
+    <span class="tok-fn">reject</span><span class="tok-pun">(</span><span class="tok-com">/* reason */</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">chaining — result flows down</div>
+                <pre><span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'https://api.github.com/users'</span><span class="tok-pun">)</span>
+  <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>response <span class="tok-op">=&gt;</span> response<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">())</span>
+  <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>data <span class="tok-op">=&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>data<span class="tok-pun">));</span>
+
+<span class="tok-com">// each .then() passes its return value</span>
+<span class="tok-com">// to the NEXT .then() in the chain</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">If a <code class="icode">.then()</code> returns a value, the next <code class="icode">.then()</code> gets it directly. If it returns <em style="color:var(--orange);">another Promise</em>, the chain waits for that one to settle first.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">promise-creation.js</div><div class="spacer"></div><div class="seg right">17 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · PROMISES IN PARALLEL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">promise-parallel.js</div>
+        <div class="breadcrumb">lecture05 / <b>parallel-promises</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">running many at once</div>
+        <h2 class="title reveal">Promises in <span class="hl">Parallel</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3><code>Promise.all()</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.5;">Waits for every promise. <strong style="color:var(--red);">One rejection = it rejects</strong> immediately.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3><code>Promise.race()</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.5;">Settles as soon as the <strong>first</strong> promise settles — win or lose.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3><code>Promise.allSettled()</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);line-height:1.5;">Waits for <strong>all</strong>, regardless of outcome. Never rejects.</p>
+            </div>
+        </div>
+        <div class="codeblock sm reveal" style="margin-top:8px;">
+            <div class="cb-bar">promise-parallel.js</div>
+            <pre><span class="tok-kw">const</span> promises <span class="tok-op">=</span> <span class="tok-pun">[</span><span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">),</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/posts'</span><span class="tok-pun">),</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/comments'</span><span class="tok-pun">)];</span>
+<span class="tok-kw">const</span> results <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">allSettled</span><span class="tok-pun">(</span>promises<span class="tok-pun">);</span>
+results<span class="tok-pun">.</span><span class="tok-fn">forEach</span><span class="tok-pun">((</span>r<span class="tok-pun">,</span> i<span class="tok-pun">) =&gt; {</span> <span class="tok-kw">if</span> <span class="tok-pun">(</span>r<span class="tok-pun">.</span>status <span class="tok-op">===</span> <span class="tok-str">'rejected'</span><span class="tok-pun">)</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">`Request </span><span class="tok-pun">${</span>i<span class="tok-pun">}</span><span class="tok-str"> failed`</span><span class="tok-pun">,</span> r<span class="tok-pun">.</span>reason<span class="tok-pun">);</span> <span class="tok-pun">});</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">promise-parallel.js</div><div class="spacer"></div><div class="seg right">18 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · ASYNC / AWAIT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">async-await.js</div>
+        <div class="breadcrumb">lecture05 / <b>async-await-syntax</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">syntactic sugar</div>
+        <h2 class="title reveal"><span class="hl">async</span> / <span style="color:var(--orange);">await</span></h2>
+        <div class="split reveal">
+            <div>
+                <p class="lead-in"><code class="icode">async</code>/<code class="icode">await</code> is sugar <em style="color:var(--orange);">on top of</em> Promises — it makes asynchronous code <strong style="color:var(--cyan);">read like synchronous code</strong>, top to bottom.</p>
+                <ul class="list">
+                    <li>An <code class="icode">async function</code> always returns a Promise</li>
+                    <li><code class="icode">await</code> pauses the function until that Promise settles</li>
+                    <li>It doesn't block the whole thread — only this function waits</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">async-await.js</div>
+                <pre><span class="tok-com">// Promise chain</span>
+<span class="tok-kw">function</span> <span class="tok-fn">getUser</span><span class="tok-pun">(</span>id<span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">`/api/users/</span><span class="tok-pun">${</span>id<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">)</span>
+    <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>res <span class="tok-op">=&gt;</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">());</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-com">// same thing, async/await</span>
+<span class="tok-kw">async function</span> <span class="tok-fn">getUser</span><span class="tok-pun">(</span>id<span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> res <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">`/api/users/</span><span class="tok-pun">${</span>id<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">();</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">async-await.js</div><div class="spacer"></div><div class="seg right">19 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · ERROR HANDLING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">try-catch.js</div>
+        <div class="breadcrumb">lecture05 / <b>error-handling</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">coders always make mistakes</div>
+        <h2 class="title reveal"><span class="hl">Error</span> Handling</h2>
+        <div class="split reveal">
+            <div>
+                <p class="lead-in">Bugs happen. <code class="icode">try</code>/<code class="icode">catch</code> lets you handle them gracefully around <code class="icode">await</code> calls instead of crashing the app.</p>
+                <ul class="list">
+                    <li>Every JS <code class="icode">Error</code> object has:</li>
+                    <li class="sub"><code class="icode">name</code> — the error type (e.g. <code class="icode">TypeError</code>)</li>
+                    <li class="sub"><code class="icode">message</code> — human-readable description</li>
+                    <li class="sub"><code class="icode">stack</code> — the call trace at throw time</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">try-catch.js</div>
+                <pre><span class="tok-kw">async function</span> <span class="tok-fn">fetchUser</span><span class="tok-pun">(</span>id<span class="tok-pun">) {</span>
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> res <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">`/api/users/</span><span class="tok-pun">${</span>id<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(!</span>res<span class="tok-pun">.</span>ok<span class="tok-pun">)</span> <span class="tok-kw">throw new</span> <span class="tok-cls">Error</span><span class="tok-pun">(</span><span class="tok-str">`HTTP </span><span class="tok-pun">${</span>res<span class="tok-pun">.</span>status<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+    <span class="tok-kw">return await</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">();</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">catch</span> <span class="tok-pun">(</span>error<span class="tok-pun">) {</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">error</span><span class="tok-pun">(</span>error<span class="tok-pun">.</span>message<span class="tok-pun">);</span>
+    <span class="tok-kw">return null</span><span class="tok-pun">;</span>  <span class="tok-com">// graceful fallback</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">try-catch.js</div><div class="spacer"></div><div class="seg right">20 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · BEFORE & AFTER: ADDING A PROMISE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">execution-order.js</div>
+        <div class="breadcrumb">lecture05 / <b>before-after-promise</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">watch the order change</div>
+        <h2 class="title reveal">Before &amp; After: Adding a <span class="hl">Promise</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label" style="color:var(--fg-dim);">Only sync + setTimeout</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">no promise</div>
+                    <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'start'</span><span class="tok-pun">);</span>
+<span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'setTimeout'</span><span class="tok-pun">);</span>
+<span class="tok-pun">},</span> <span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'end'</span><span class="tok-pun">);</span></pre>
+                </div>
+                <div class="note ok" style="margin-top:14px;">Output: <b style="color:var(--teal);">start → end → setTimeout</b></div>
+            </div>
+            <div>
+                <div class="compare-label good">+ a microtask in the mix</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">with promise</div>
+                    <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'start'</span><span class="tok-pun">);</span>
+<span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'setTimeout'</span><span class="tok-pun">);</span>
+<span class="tok-pun">},</span> <span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">resolve</span><span class="tok-pun">().</span><span class="tok-fn">then</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Promise'</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'end'</span><span class="tok-pun">);</span></pre>
+                </div>
+                <div class="note ok" style="margin-top:14px;">Output: <b style="color:var(--teal);">start → end → Promise → setTimeout</b></div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">The microtask (<code class="icode">Promise</code>) always slots in <b>before</b> the macrotask (<code class="icode">setTimeout</code>) — even though <code class="icode">setTimeout</code> was scheduled first.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">execution-order.js</div><div class="spacer"></div><div class="seg right">21 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · MICROTASKS VS MACROTASKS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-loop.js</div>
+        <div class="breadcrumb">lecture05 / <b>microtask-vs-macrotask</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the priority rule</div>
+        <h2 class="title reveal">Microtasks <span class="hl">vs</span> Macrotasks</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th></th><th>🟢 Microtask (job)</th><th>🟣 Macrotask (task)</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Sources</strong></td><td><code>Promise.then/catch/finally</code>, <code>queueMicrotask</code></td><td><code>setTimeout</code>, <code>setInterval</code>, DOM events, I/O, <code>MessageChannel</code></td></tr>
+                <tr><td><strong>Priority</strong></td><td>Runs <strong>before</strong> the next macrotask, always</td><td>Runs <strong>one at a time</strong>, only once microtasks are drained</td></tr>
+                <tr><td><strong>Per loop tick</strong></td><td><strong>ALL</strong> queued microtasks run</td><td>Exactly <strong>ONE</strong> queued macrotask runs</td></tr>
+                <tr><td><strong>Danger</strong></td><td>A microtask that queues another microtask can <em style="color:var(--red);">starve</em> macrotasks (rendering, input)</td><td>—</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">Further reading: Jake Archibald — <em>"Tasks, microtasks, queues and schedules"</em> (jakearchibald.com).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-loop.js</div><div class="spacer"></div><div class="seg right">22 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · CLASSIC INTERVIEW WALKTHROUGH ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">execution-order.js</div>
+        <div class="breadcrumb">lecture05 / <b>interview-walkthrough</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">step by step</div>
+        <h2 class="title reveal">Classic Interview <span class="hl">Walkthrough</span></h2>
+        <div class="split reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">execution-order.js</div>
+                <pre><span class="tok-out">// 1️⃣</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Start'</span><span class="tok-pun">);</span>
+<span class="tok-out">// 2️⃣</span> <span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt; {</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Timeout'</span><span class="tok-pun">);</span> <span class="tok-pun">},</span> <span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-out">// 3️⃣</span> <span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">resolve</span><span class="tok-pun">().</span><span class="tok-fn">then</span><span class="tok-pun">(() =&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Promise'</span><span class="tok-pun">));</span>
+<span class="tok-out">// 4️⃣</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'End'</span><span class="tok-pun">);</span></pre>
+            </div>
+            <div>
+                <ul class="list">
+                    <li><strong>1.</strong> Call stack runs: <code class="icode">'Start'</code> → <code class="icode">'End'</code> (sync code first)</li>
+                    <li><strong>2.</strong> Microtask queue drains: <code class="icode">'Promise'</code></li>
+                    <li><strong>3.</strong> Macrotask queue: pick one → <code class="icode">'Timeout'</code></li>
+                </ul>
+                <div class="note ok" style="margin-top:20px;">Output: <b style="color:var(--teal);">Start → End → Promise → Timeout</b></div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">execution-order.js</div><div class="spacer"></div><div class="seg right">23 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · EXERCISE: PREDICT THE OUTPUT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">exercise.js</div>
+        <div class="breadcrumb">lecture05 / <b>predict-output</b></div>
+    </div>
+    <div class="canvas" style="align-items:center;justify-content:center;">
+        <div class="kicker reveal" style="justify-content:center;">no AI · pen &amp; paper first</div>
+        <h2 class="title reveal" style="text-align:center;">Exercise: Predict the <span class="hl">Output Order</span></h2>
+        <div class="codeblock reveal" style="max-width:900px;margin:0 auto;">
+            <div class="cb-bar">exercise.js</div>
+            <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'1'</span><span class="tok-pun">);</span>
+<span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'2'</span><span class="tok-pun">),</span> <span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">resolve</span><span class="tok-pun">().</span><span class="tok-fn">then</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'3'</span><span class="tok-pun">);</span>
+  <span class="tok-fn">setTimeout</span><span class="tok-pun">(() =&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'4'</span><span class="tok-pun">),</span> <span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span>
+<span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">resolve</span><span class="tok-pun">().</span><span class="tok-fn">then</span><span class="tok-pun">(() =&gt;</span> <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'5'</span><span class="tok-pun">));</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'6'</span><span class="tok-pun">);</span></pre>
+        </div>
+        <div class="note warn reveal" style="max-width:900px;margin:24px auto 0;text-align:center;">✋ <b>Pause!</b> Write your predicted order on paper before you run it. Then verify.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">exercise.js</div><div class="spacer"></div><div class="seg right">24 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · ASYNC/AWAIT ERROR PATTERNS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">async-error-handling.js</div>
+        <div class="breadcrumb">lecture05 / <b>async-error-patterns</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two idioms</div>
+        <h2 class="title reveal">async/await <span class="hl">Error</span> Patterns</h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>Pattern 1 — try/catch</h3>
+                <div class="codeblock xs">
+                    <div class="cb-bar">most common</div>
+                    <pre><span class="tok-kw">async function</span> <span class="tok-fn">fetchUser</span><span class="tok-pun">(</span>id<span class="tok-pun">) {</span>
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> res <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">`/api/users/</span><span class="tok-pun">${</span>id<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(!</span>res<span class="tok-pun">.</span>ok<span class="tok-pun">)</span> <span class="tok-kw">throw new</span> <span class="tok-cls">Error</span><span class="tok-pun">(</span><span class="tok-str">`HTTP </span><span class="tok-pun">${</span>res<span class="tok-pun">.</span>status<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+    <span class="tok-kw">return await</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">();</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">catch</span> <span class="tok-pun">(</span>error<span class="tok-pun">) {</span>
+    <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">error</span><span class="tok-pun">(</span>error<span class="tok-pun">.</span>message<span class="tok-pun">);</span>
+    <span class="tok-kw">return null</span><span class="tok-pun">;</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>Pattern 2 — wrapper (Go-style)</h3>
+                <div class="codeblock xs">
+                    <div class="cb-bar">reusable</div>
+                    <pre><span class="tok-kw">async function</span> <span class="tok-fn">tryCatch</span><span class="tok-pun">(</span>promise<span class="tok-pun">) {</span>
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> data <span class="tok-op">=</span> <span class="tok-kw">await</span> promise<span class="tok-pun">;</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">[</span>data<span class="tok-pun">,</span> <span class="tok-kw">null</span><span class="tok-pun">];</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">catch</span> <span class="tok-pun">(</span>error<span class="tok-pun">) {</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">[</span><span class="tok-kw">null</span><span class="tok-pun">,</span> error<span class="tok-pun">];</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">const</span> <span class="tok-pun">[</span>user<span class="tok-pun">,</span> err<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">tryCatch</span><span class="tok-pun">(</span><span class="tok-fn">fetchUser</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">));</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">async-error-handling.js</div><div class="spacer"></div><div class="seg right">25 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · PROMISE.ALL VS ALLSETTLED ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">promise-parallel.js</div>
+        <div class="breadcrumb">lecture05 / <b>all-vs-allsettled</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">choose the right tool</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">Promise.all</code> <span class="hl">vs</span> <code style="font-family:inherit;">allSettled</code></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">promise-parallel.js</div>
+            <pre><span class="tok-kw">const</span> promises <span class="tok-op">=</span> <span class="tok-pun">[</span>
+  <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">),</span>     <span class="tok-out">// ✅ succeeds</span>
+  <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/posts'</span><span class="tok-pun">),</span>     <span class="tok-out">// ❌ fails (404)</span>
+  <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/comments'</span><span class="tok-pun">),</span>  <span class="tok-out">// ✅ succeeds</span>
+<span class="tok-pun">];</span>
+
+<span class="tok-kw">const</span> all <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">all</span><span class="tok-pun">(</span>promises<span class="tok-pun">);</span>          <span class="tok-out">// ❌ throws! one failure = all fail</span>
+<span class="tok-kw">const</span> settled <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-cls">Promise</span><span class="tok-pun">.</span><span class="tok-fn">allSettled</span><span class="tok-pun">(</span>promises<span class="tok-pun">);</span>  <span class="tok-out">// waits for ALL regardless</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">🎯 <b>Real-world case:</b> a dashboard loading multiple APIs. <code class="icode">allSettled</code> lets successful widgets render normally while failed ones show their own error state — instead of the whole page breaking.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">promise-parallel.js</div><div class="spacer"></div><div class="seg right">26 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture05</div>
+        <div class="breadcrumb">lecture05 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🔁 Execution Model</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Single-threaded + <strong style="color:var(--fg);">event loop</strong> architecture</li>
+                    <li style="font-size:20px;">Drain <strong>ALL</strong> microtasks → pick <strong>ONE</strong> macrotask → repeat</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>📈 The Evolution</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Callback → Promise → <code class="icode">async/await</code></li>
+                    <li style="font-size:20px;">Each step trades nesting for readability</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🛡 Error Handling</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code class="icode">try/catch</code> around <code class="icode">await</code></li>
+                    <li style="font-size:20px;">Choose <code class="icode">all</code> vs <code class="icode">allSettled</code> deliberately</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🎯 Interview Skill</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Trace <code class="icode">setTimeout</code>/<code class="icode">Promise</code> output order by hand</li>
+                    <li style="font-size:20px;">Microtask priority is the #1 gotcha</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> TypeScript
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture05</div><div class="spacer"></div><div class="seg right">27 / 27</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture5-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture5.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 7 — Backend JavaScript Development</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–6) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Prototype-style small diagram (reused for compact flows) */
+.proto-diagram { flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:28px; }
+.proto-row { display:flex;align-items:center;gap:0; }
+.pc-box { background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 24px;font-family:var(--font-mono);text-align:center;min-width:220px; }
+.pc-box .pcn { font-size:22px;font-weight:700;margin-bottom:6px; }
+.pc-box .pct { font-size:15px;color:var(--fg-faint);margin-bottom:6px; }
+.pc-box .pcp { font-size:16px;color:var(--fg-dim);line-height:1.7; }
+.pc-box.b-orange { border-color:rgba(255,158,100,0.5); } .pc-box.b-orange .pcn { color:var(--orange); }
+.pc-box.b-blue   { border-color:rgba(122,162,247,0.5); } .pc-box.b-blue .pcn   { color:var(--blue); }
+.pc-box.b-teal   { border-color:rgba(115,218,202,0.5); } .pc-box.b-teal .pcn   { color:var(--teal); }
+.pc-box.b-green  { border-color:rgba(158,206,106,0.5); } .pc-box.b-green .pcn  { color:var(--green); }
+.pc-box.b-purple { border-color:rgba(187,154,247,0.5); } .pc-box.b-purple .pcn { color:var(--purple); }
+.pc-box.b-red    { border-color:rgba(247,118,142,0.5); } .pc-box.b-red .pcn    { color:var(--red); }
+.pc-box.b-null   { border-color:var(--border-soft); opacity:0.5; }
+.pc-arr { display:flex;flex-direction:column;align-items:center;padding:0 10px;gap:4px;flex-shrink:0; }
+.pc-arr .pc-label { font-family:var(--font-mono);font-size:15px;color:var(--fg-faint); }
+.pc-arr .pc-line  { color:var(--cyan);font-size:26px;letter-spacing:-4px; }
+.pc-down { text-align:center;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);padding:4px 0; }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === Shared additions (used by lecture5+): rendering pipeline / compact utility grid === */
+.pipeline { display:flex;align-items:center;flex:1;min-height:0;gap:0; }
+.pipe-step { flex:1;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px 22px;text-align:center;display:flex;flex-direction:column;gap:10px; }
+.pipe-step .pipe-icon { font-size:34px; }
+.pipe-step .pipe-name { font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--fg); }
+.pipe-step .pipe-desc { font-size:16px;color:var(--fg-dim);line-height:1.4; }
+.pipe-arrow { flex:0 0 56px;text-align:center;font-size:30px;color:var(--fg-faint); }
+.pipe-step.p-blue   { border-color:rgba(122,162,247,0.5); } .pipe-step.p-blue .pipe-name   { color:var(--blue); }
+.pipe-step.p-cyan   { border-color:rgba(125,207,255,0.5); } .pipe-step.p-cyan .pipe-name   { color:var(--cyan); }
+.pipe-step.p-orange { border-color:rgba(255,158,100,0.5); } .pipe-step.p-orange .pipe-name { color:var(--orange); }
+.pipe-step.p-teal   { border-color:rgba(115,218,202,0.5); } .pipe-step.p-teal .pipe-name   { color:var(--teal); }
+.pipe-step.p-purple { border-color:rgba(187,154,247,0.5); } .pipe-step.p-purple .pipe-name { color:var(--purple); }
+
+.util-grid { display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;flex:1;min-height:0; }
+.util-card { background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px 20px;display:flex;flex-direction:column;gap:8px; }
+.util-card .un { font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--cyan); }
+.util-card .ud { font-size:15px;color:var(--fg-dim);line-height:1.4; }
+
+/* === LECTURE 7 ADDITIONS: phase timeline === */
+.phase-row { display:flex;gap:24px;flex:1;min-height:0; }
+.phase-card { flex:1;background:var(--panel);border:2px solid var(--border-soft);border-radius:16px;padding:30px 26px;display:flex;flex-direction:column;gap:10px;opacity:0.5;transform:scale(0.97);transition:all .3s; }
+.phase-card .pn { font-family:var(--font-mono);font-size:15px;letter-spacing:0.12em;color:var(--fg-faint); }
+.phase-card .pt { font-family:var(--font-display);font-weight:800;font-size:30px;color:var(--fg); }
+.phase-card .pr { font-size:16px;color:var(--fg-dim);line-height:1.5; }
+.phase-card.active { opacity:1;transform:scale(1);border-color:var(--yellow);box-shadow:0 0 40px rgba(224,175,104,0.25); }
+.phase-card.active .pn { color:var(--yellow); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ node lecture7.js</span></div>
+            <div class="term-out">› Loading: event loop · modules · npm · http server</div>
+            <div class="section-num">Lecture 07</div>
+            <h1>Backend <span class="hl">JavaScript</span></h1>
+            <div class="by">// Node.js Fundamentals<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note ok reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟢 <b>Module system: hand-write to understand. HTTP Server boilerplate: AI OK.</b> CommonJS vs ESModule differences must be understood on your own. HTTP Server boilerplate can be AI-generated — focus on understanding the request/response flow.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · WELCOME TO THE COMPARISON PHASE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">phases.md</div>
+        <div class="breadcrumb">lecture07 / <b>comparison-phase</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a shift in how you work with AI</div>
+        <h2 class="title reveal">Welcome to the <span class="hl">Comparison Phase</span></h2>
+        <div class="phase-row reveal">
+            <div class="phase-card">
+                <div class="pn">🔴 L1 – L6</div>
+                <div class="pt">Awareness</div>
+                <div class="pr">AI disabled. Build intuition through struggle.</div>
+            </div>
+            <div class="phase-card active">
+                <div class="pn">🟡 L7 – L13</div>
+                <div class="pt">Comparison</div>
+                <div class="pr">Write it yourself first — then compare against AI's version.</div>
+            </div>
+            <div class="phase-card">
+                <div class="pn">🟢 L14 – L17+</div>
+                <div class="pt">Ownership</div>
+                <div class="pr">Use AI freely — but you review, judge, and are accountable.</div>
+            </div>
+        </div>
+        <ul class="list reveal" style="margin-top:26px;">
+            <li>Write your solution <strong>first</strong>, then ask AI to write the same thing</li>
+            <li><strong>Compare line by line</strong> — what did AI do differently? Why?</li>
+            <li>AI can generate boilerplate (project init, config files)</li>
+            <li>You <strong style="color:var(--red);">cannot</strong> submit AI output directly as homework</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">phases.md</div><div class="spacer"></div><div class="seg right">02 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · SCHEDULE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">schedule.md</div>
+        <div class="breadcrumb">lecture07 / <b>schedule</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">where this leads</div>
+        <h2 class="title reveal"><span class="hl">Schedule</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🟢 Node.js</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">The runtime — event loop, modules, npm, building an HTTP server by hand.</p>
+            </div>
+            <div class="col-card accent-cyan">
+                <h3>🚂 Express</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">A framework on top of <code class="icode">http</code> — routing, middleware, MVC (next lecture).</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🗄️ Database</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;"><strong style="color:var(--fg);">MongoDB</strong> and MySQL — persisting data beyond a single process.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🔐 Authentication</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Knowing who's making the request, and what they're allowed to do.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">schedule.md</div><div class="spacer"></div><div class="seg right">03 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · WHAT IS NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">node.js</div>
+        <div class="breadcrumb">lecture07 / <b>what-is-nodejs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the runtime</div>
+        <h2 class="title reveal"><span class="hl">Node.js</span></h2>
+        <ul class="list reveal">
+            <li>A <strong>JavaScript runtime</strong> built on Chrome's <strong style="color:var(--cyan);">V8</strong> engine — the same engine that runs JS in Chrome, just outside the browser</li>
+            <li>Uses an <strong>event-driven, non-blocking I/O</strong> model — lightweight and efficient under load</li>
+            <li><strong>npm</strong>, Node's package ecosystem, is the largest ecosystem of open-source libraries in the world</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">Same language, different environment — no <code class="icode">window</code> or <code class="icode">document</code>, but a whole new set of APIs for files, networking, and processes.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">node.js</div><div class="spacer"></div><div class="seg right">04 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · WHAT YOU CAN DO WITH NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">use-cases.md</div>
+        <div class="breadcrumb">lecture07 / <b>what-you-can-do</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">real-world use</div>
+        <h2 class="title reveal">What You Can Do With <span class="hl">Node.js</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue"><h3>🌐 Web Server</h3></div>
+            <div class="col-card accent-cyan"><h3>📡 IoT</h3></div>
+            <div class="col-card accent-orange"><h3>💬 Real-Time Chat</h3></div>
+            <div class="col-card accent-purple"><h3>🧩 Microservices</h3></div>
+            <div class="col-card accent-teal"><h3>🎬 Streaming — Netflix</h3></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;font-style:italic;">"Any application that can be written in JavaScript, will eventually be written in JavaScript." <span style="font-style:normal;color:var(--fg-faint);">— Atwood's Law</span></div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">use-cases.md</div><div class="spacer"></div><div class="seg right">05 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · WHY NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why-node.md</div>
+        <div class="breadcrumb">lecture07 / <b>why-nodejs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the case for it</div>
+        <h2 class="title reveal">Why <span class="hl">Node.js</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>📈 Scalability</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Handles many concurrent connections on one thread.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>⚡ Performance</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">V8's JIT compilation, non-blocking I/O.</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>🔁 Full-Stack JS</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">One language, front-end to back-end.</p></div>
+            <div class="col-card accent-purple" style="padding:26px 24px;"><h3>📦 Large Ecosystem</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">npm — a package for nearly everything.</p></div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why-node.md</div><div class="spacer"></div><div class="seg right">06 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · SETUP NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture07 / <b>setup-nodejs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">getting set up</div>
+        <h2 class="title reveal">Setup <span class="hl">Node.js</span></h2>
+        <ul class="list reveal">
+            <li><a style="color:var(--cyan);text-decoration:none;">nodejs.org</a> — install the <strong>LTS</strong> (Long-Term Support) version</li>
+            <li><strong>nvm</strong> — Node Version Manager, lets you switch Node versions per project</li>
+        </ul>
+        <div class="codeblock reveal" style="margin-top:8px;">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">nvm</span> install --lts
+<span class="tok-fn">nvm</span> use --lts
+<span class="tok-fn">node</span> -v</pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Different projects often need different Node versions — <code class="icode">nvm</code> avoids reinstalling Node globally every time you switch.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">07 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · SECTION DIVIDER: EVENT LOOP ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">event-loop.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture07</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">The Event <span class="hl">Loop</span></div>
+            <div class="by" style="margin-top:18px;">now with libuv, and Node's architecture<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 09 · EVENT LOOP: SINGLE-THREADED + LIBUV ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-loop.js</div>
+        <div class="breadcrumb">lecture07 / <b>single-threaded-libuv</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">same idea, new engine room</div>
+        <h2 class="title reveal">Event Loop <span class="hl">in Node.js</span></h2>
+        <ul class="list reveal">
+            <li>Node.js is <strong>single-threaded</strong> — just like the browser's JS thread</li>
+            <li>It uses an <strong>event loop</strong> to handle concurrency without spawning OS threads per request</li>
+            <li>The event loop itself is implemented by <strong style="color:var(--cyan);">libuv</strong> — a C library that also handles file I/O, networking, and timers</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">You already know this mental model from Lecture 5 — the call stack, a callback queue, and a loop that moves work between them. Node just swaps the browser's Web APIs for <b>libuv</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-loop.js</div><div class="spacer"></div><div class="seg right">09 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · EVENT LOOP: IN THE BROWSER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-loop.js</div>
+        <div class="breadcrumb">lecture07 / <b>browser-event-loop</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">the version you already know</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:10px;">Event Loop: <span class="hl">In the Browser</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 600" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="b1-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+            <marker id="b1-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#ff9e64"/></marker>
+            <marker id="b1-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#bb9af7"/></marker>
+          </defs>
+          <!-- JS Callstack -->
+          <rect x="40" y="60" width="440" height="480" rx="9" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="260" y="98" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#7aa2f7">JS Callstack</text>
+          <rect x="70" y="130" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="260" y="157" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">console.log()</text>
+          <rect x="70" y="182" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="260" y="209" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">logger()</text>
+          <rect x="70" y="234" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="260" y="261" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9ece6a">main()</text>
+
+          <!-- Browser dashed boundary -->
+          <rect x="540" y="20" width="1030" height="560" rx="10" fill="none" stroke="#565f89" stroke-width="2" stroke-dasharray="10 8"/>
+          <text x="1520" y="52" text-anchor="end" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9aa5ce">Browser</text>
+
+          <!-- Callback Queue -->
+          <rect x="580" y="60" width="950" height="150" rx="9" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1055" y="98" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">Callback Queue</text>
+          <rect x="610" y="122" width="220" height="44" rx="5" fill="#232846" stroke="#453a4a"/>
+          <text x="720" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">onClick</text>
+          <rect x="850" y="122" width="220" height="44" rx="5" fill="#232846" stroke="#453a4a"/>
+          <text x="960" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">onLoad</text>
+          <rect x="1090" y="122" width="220" height="44" rx="5" fill="#232846" stroke="#453a4a" opacity="0.6"/>
+          <text x="1200" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#565f89">fetch done</text>
+
+          <!-- Web APIs -->
+          <rect x="580" y="280" width="950" height="270" rx="9" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1055" y="318" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#ff9e64">Web APIs</text>
+          <rect x="610" y="342" width="890" height="46" rx="5" fill="#232846" stroke="#453a1f"/>
+          <text x="1055" y="371" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">setTimeout</text>
+          <rect x="610" y="400" width="890" height="46" rx="5" fill="#232846" stroke="#453a1f"/>
+          <text x="1055" y="429" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">DOM events</text>
+          <rect x="610" y="458" width="890" height="46" rx="5" fill="#232846" stroke="#453a1f"/>
+          <text x="1055" y="487" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">fetch</text>
+
+          <!-- Arrows -->
+          <path d="M480,220 L595,340" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#b1-o)"/>
+          <text x="500" y="290" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#7dcfff">register()</text>
+
+          <path d="M1055,280 L1055,215" stroke="#ff9e64" stroke-width="2.5" fill="none" marker-end="url(#b1-p)"/>
+          <text x="1075" y="250" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#ff9e64">done → queue</text>
+
+          <path d="M580,120 L500,120 L500,60 L480,60" stroke="#bb9af7" stroke-width="2.5" fill="none" marker-end="url(#b1-c)"/>
+          <text x="360" y="45" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#bb9af7">event loop pushes back</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:6px;">The call stack registers work with a <b style="color:var(--orange);">Web API</b>; when it finishes, the callback lands in the <b style="color:var(--purple);">Callback Queue</b> and the event loop pushes it back onto the stack.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-loop.js</div><div class="spacer"></div><div class="seg right">10 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · EVENT LOOP: IN NODE.JS (LIBUV) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-loop.js</div>
+        <div class="breadcrumb">lecture07 / <b>node-event-loop-libuv</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">same shape, different engine</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:10px;">Event Loop: <span class="hl">In Node.js</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 600" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="b2-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+            <marker id="b2-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#73daca"/></marker>
+          </defs>
+          <!-- JS Callstack -->
+          <rect x="120" y="80" width="440" height="440" rx="9" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="340" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#7aa2f7">JS Callstack</text>
+          <rect x="150" y="150" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="340" y="177" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">console.log()</text>
+          <rect x="150" y="202" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="340" y="229" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">logger()</text>
+          <rect x="150" y="254" width="380" height="42" rx="4" fill="#232846" stroke="#2a2e45"/>
+          <text x="340" y="281" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9ece6a">main()</text>
+
+          <!-- libuv dashed boundary -->
+          <rect x="1000" y="30" width="580" height="540" rx="10" fill="none" stroke="#565f89" stroke-width="2" stroke-dasharray="10 8"/>
+          <text x="1550" y="62" text-anchor="end" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#73daca">libuv</text>
+
+          <!-- Callback Queue -->
+          <rect x="1030" y="80" width="520" height="440" rx="9" fill="#1f2335" stroke="#73daca" stroke-width="2"/>
+          <text x="1290" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#73daca">Callback Queue</text>
+          <rect x="1060" y="150" width="460" height="42" rx="5" fill="#232846" stroke="#1f4a45"/>
+          <text x="1290" y="177" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">Stream</text>
+          <rect x="1060" y="202" width="460" height="42" rx="5" fill="#232846" stroke="#1f4a45"/>
+          <text x="1290" y="229" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">network</text>
+          <rect x="1060" y="254" width="460" height="42" rx="5" fill="#232846" stroke="#1f4a45"/>
+          <text x="1290" y="281" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">file system</text>
+          <rect x="1060" y="306" width="460" height="42" rx="5" fill="#232846" stroke="#1f4a45" opacity="0.7"/>
+          <text x="1290" y="333" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#565f89">other</text>
+
+          <!-- Arrows: loop back and forth -->
+          <path d="M562,140 L1025,140" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#b2-t)"/>
+          <text x="795" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#7dcfff">register (fs, net…)</text>
+
+          <path d="M1025,460 L562,460" stroke="#73daca" stroke-width="2.5" fill="none" marker-end="url(#b2-c)"/>
+          <text x="795" y="490" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#73daca">event loop pushes callback back</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:6px;">No separate "Web APIs" box — <b style="color:var(--teal);">libuv</b> plays that role directly, running file/network/stream work off the main thread and queuing the result.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-loop.js</div><div class="spacer"></div><div class="seg right">11 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · NODE.JS ARCHITECTURE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">architecture</div>
+        <div class="breadcrumb">lecture07 / <b>nodejs-architecture</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">from your code to the OS</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:10px;">Node.js <span class="hl">Architecture</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 560" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <!-- Layer 1: Application / npm contribs (Userland) -->
+          <rect x="40" y="20" width="1260" height="110" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="80" y="65" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#7aa2f7">Application</text>
+          <rect x="640" y="45" width="620" height="62" rx="6" fill="#232846" stroke="#2a2e45"/>
+          <text x="950" y="83" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-style="italic" fill="#9aa5ce">npm contribs</text>
+          <rect x="1300" y="20" width="12" height="110" rx="4" fill="#7aa2f7"/>
+          <text x="1330" y="82" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7aa2f7">Userland</text>
+
+          <!-- Layer 2: Node API / Node Core (Node runtime) -->
+          <rect x="40" y="150" width="1260" height="130" rx="8" fill="#1f2335" stroke="#7dcfff" stroke-width="2"/>
+          <text x="80" y="230" font-family="JetBrains Mono" font-size="18" fill="#9aa5ce">Node Core</text>
+          <rect x="70" y="170" width="1200" height="46" rx="6" fill="#232846" stroke="#2a2e45"/>
+          <text x="670" y="200" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#7dcfff">Node API</text>
+          <rect x="1300" y="150" width="12" height="130" rx="4" fill="#7dcfff"/>
+          <text x="1330" y="222" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7dcfff">Node runtime</text>
+
+          <!-- Layer 3: Event Loop | JavaScript Engine (Infrastructure) -->
+          <rect x="40" y="300" width="1260" height="130" rx="8" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <rect x="70" y="330" width="590" height="70" rx="6" fill="#232846" stroke="#2a2e45"/>
+          <text x="365" y="373" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">Event Loop</text>
+          <rect x="680" y="330" width="590" height="70" rx="6" fill="#232846" stroke="#2a2e45"/>
+          <text x="975" y="373" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">JavaScript Engine</text>
+          <rect x="1300" y="300" width="12" height="130" rx="4" fill="#bb9af7"/>
+          <text x="1330" y="372" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#bb9af7">Infrastructure</text>
+
+          <!-- Layer 4: Operating System -->
+          <rect x="40" y="450" width="1260" height="90" rx="8" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="670" y="504" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#9aa5ce">Operating System</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:6px;">Your code sits on top of <b>Node Core</b> (built-in modules like <code class="icode">fs</code>/<code class="icode">http</code>), which itself runs on the <b>Event Loop</b> + <b>V8</b>, which runs on the OS.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">architecture</div><div class="spacer"></div><div class="seg right">12 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · SECTION DIVIDER: MODULES & NPM ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">modules.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture07</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Modules <span class="hl">&amp; NPM</span></div>
+            <div class="by" style="margin-top:18px;">CommonJS · ESModule · core modules · package.json<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 14 · MODULES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">module-use.js</div>
+        <div class="breadcrumb">lecture07 / <b>modules</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">packaging &amp; namespacing</div>
+        <h2 class="title reveal"><span class="hl">Modules</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Modules split code into files, each with its own scope — <strong>to prevent name collisions</strong></li>
+                    <li>Two systems exist: <strong style="color:var(--cyan);">CommonJS</strong> (<code class="icode">require</code>) and <strong style="color:var(--orange);">ESModule</strong> (<code class="icode">import</code>)</li>
+                    <li>A module opts in with <code class="icode">module.exports</code> — everything else stays private</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">module-use.js</div>
+                <pre><span class="tok-kw">const</span> module1 <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'./module1'</span><span class="tok-pun">);</span>
+
+module1<span class="tok-pun">.</span><span class="tok-fn">module1</span><span class="tok-pun">();</span>
+<span class="tok-out">// 'in module1: module1'</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">module-use.js</div><div class="spacer"></div><div class="seg right">14 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · COMMONJS VS ESMODULE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture07 / <b>commonjs-vs-esmodule</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two module systems</div>
+        <h2 class="title reveal">CommonJS <span class="hl">vs.</span> ESModule</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Feature</th><th>CommonJS (<code>require</code>)</th><th>ESModule (<code>import</code>)</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Syntax</strong></td><td><code>const x = require('x')</code></td><td><code>import x from 'x'</code></td></tr>
+                <tr><td><strong>Export</strong></td><td><code>module.exports = ...</code></td><td><code>export default ...</code></td></tr>
+                <tr><td><strong>Loading</strong></td><td>Synchronous</td><td>Asynchronous</td></tr>
+                <tr><td><strong>Where</strong></td><td>Node.js (default)</td><td>Browsers + Node.js</td></tr>
+                <tr><td><strong>File extension</strong></td><td><code>.js</code> (default)</td><td><code>.mjs</code> or <code>"type":"module"</code></td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:16px;">Node.js defaults to CommonJS. To use ESModule, add <code class="icode">"type": "module"</code> to <code class="icode">package.json</code>, or use the <code class="icode">.mjs</code> extension.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">15 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · TYPES OF MODULES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">types.md</div>
+        <div class="breadcrumb">lecture07 / <b>types-of-modules</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three sources</div>
+        <h2 class="title reveal">Types of <span class="hl">Modules</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>⚙️ Core Modules</h3>
+                <p style="font-size:20px;color:var(--fg-dim);line-height:1.5;">Built into Node itself — <code class="icode">http</code>, <code class="icode">fs</code>, <code class="icode">path</code>, <code class="icode">url</code>, <code class="icode">crypto</code>, <code class="icode">os</code>, <code class="icode">events</code>, <code class="icode">stream</code>…</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>📄 Local Modules</h3>
+                <p style="font-size:20px;color:var(--fg-dim);line-height:1.5;">Your own files — connected via <code class="icode">module.exports</code> and <code class="icode">require()</code>.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>📦 Third-Party Modules</h3>
+                <p style="font-size:20px;color:var(--fg-dim);line-height:1.5;">Installed from <strong>npm</strong> — someone else's code, in your <code class="icode">node_modules</code>.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">types.md</div><div class="spacer"></div><div class="seg right">16 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · CORE MODULES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">core-modules.md</div>
+        <div class="breadcrumb">lecture07 / <b>core-modules</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">built into Node</div>
+        <h2 class="title reveal">Core <span class="hl">Modules</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Module</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>buffer</code></td><td>For I/O operations (file and network)</td></tr>
+                <tr><td><code>http</code></td><td>HTTP server and client</td></tr>
+                <tr><td><code>fs</code></td><td>File system utilities</td></tr>
+                <tr><td><code>path</code></td><td>File path utilities</td></tr>
+                <tr><td><code>url</code></td><td>URL parser utilities</td></tr>
+                <tr><td><code>child_process</code></td><td>Functions for running external programs</td></tr>
+                <tr><td><code>os</code></td><td>Operating system utilities</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">core-modules.md</div><div class="spacer"></div><div class="seg right">17 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · NPM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">npm</div>
+        <div class="breadcrumb">lecture07 / <b>node-package-manager</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the default package manager</div>
+        <h2 class="title reveal">Node Package Manager <span class="hl">(NPM)</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>NPM ships with Node.js by default — one of the largest open-source ecosystems in the world</li>
+                    <li>A command-line utility for <strong>discovering, installing, and removing</strong> packages</li>
+                    <li>Browse packages at <span style="color:var(--cyan);">npmjs.com</span></li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>Popular packages</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.7;"><code class="icode">lodash</code> — utility functions<br><code class="icode">express</code> — web framework<br><br>Trends: <span style="color:var(--cyan);">risingstars.js.org</span> · <span style="color:var(--cyan);">npmtrends.com</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">npm</div><div class="spacer"></div><div class="seg right">18 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · GLOBAL VARIABLES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">global-variables.js</div>
+        <div class="breadcrumb">lecture07 / <b>global-variables</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">available everywhere, no import</div>
+        <h2 class="title reveal">Global <span class="hl">Variables</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><code class="icode">__dirname</code> — absolute path of the current file's directory</li>
+                    <li><code class="icode">__filename</code> — absolute path of the current file</li>
+                    <li><code class="icode">exports</code> / <code class="icode">module</code> — the export mechanism</li>
+                    <li><code class="icode">require()</code> — load another module</li>
+                    <li><code class="icode">process</code> — info about the running Node process</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">global-variables.js</div>
+                <pre><span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'__dirname:'</span><span class="tok-pun">,</span> __dirname<span class="tok-pun">);</span>
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'__filename:'</span><span class="tok-pun">,</span> __filename<span class="tok-pun">);</span>
+
+<span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>
+  <span class="tok-str">'exports === module.exports?'</span><span class="tok-pun">,</span>
+  exports <span class="tok-op">===</span> module<span class="tok-pun">.</span>exports
+<span class="tok-pun">);</span> <span class="tok-out">// true</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">global-variables.js</div><div class="spacer"></div><div class="seg right">19 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · FILE SYSTEM MODULE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">fs-use.js</div>
+        <div class="breadcrumb">lecture07 / <b>file-system-module</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reading and writing files</div>
+        <h2 class="title reveal">File System <span class="hl">Module</span></h2>
+        <div class="split reveal">
+            <div>
+                <p class="lead-in">Every method comes in <strong>two flavors</strong>:</p>
+                <ul class="list">
+                    <li><code class="icode">readFileSync()</code> / <code class="icode">readFile()</code></li>
+                    <li><code class="icode">writeFileSync()</code> / <code class="icode">writeFile()</code></li>
+                    <li><code class="icode">appendFileSync()</code> / <code class="icode">appendFile()</code></li>
+                    <li><code class="icode">readdirSync()</code> / <code class="icode">readdir()</code></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">fs-use.js</div>
+                <pre><span class="tok-kw">const</span> fs <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'fs'</span><span class="tok-pun">);</span>
+
+<span class="tok-com">// async — doesn't block the event loop</span>
+fs<span class="tok-pun">.</span><span class="tok-fn">readFile</span><span class="tok-pun">(</span>fileName<span class="tok-pun">,</span> <span class="tok-pun">{</span> encoding<span class="tok-pun">:</span> <span class="tok-str">'utf8'</span> <span class="tok-pun">},</span>
+  <span class="tok-pun">(</span>err<span class="tok-pun">,</span> data<span class="tok-pun">) =&gt; {</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(</span>err<span class="tok-pun">)</span> <span class="tok-kw">throw</span> err<span class="tok-pun">;</span>
+    <span class="tok-fn">log</span><span class="tok-pun">(</span>data<span class="tok-pun">);</span>
+  <span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">fs-use.js</div><div class="spacer"></div><div class="seg right">20 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · HTTP MODULE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">http-server.js</div>
+        <div class="breadcrumb">lecture07 / <b>http-module</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the module Express is built on</div>
+        <h2 class="title reveal">HTTP <span class="hl">Module</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><code class="icode">http</code> provides both server <strong>and</strong> client functionality</li>
+                    <li><code class="icode">createServer()</code> — build a server from a request handler function</li>
+                    <li><code class="icode">request()</code> — make outbound HTTP requests</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">http-server.js</div>
+                <pre><span class="tok-kw">const</span> http <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'http'</span><span class="tok-pun">);</span>
+
+<span class="tok-kw">const</span> server <span class="tok-op">=</span> http<span class="tok-pun">.</span><span class="tok-fn">createServer</span><span class="tok-pun">((</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">(</span><span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">stringify</span><span class="tok-pun">({</span>
+    message<span class="tok-pun">:</span> <span class="tok-str">'Hello World'</span>
+  <span class="tok-pun">}));</span>
+<span class="tok-pun">});</span>
+
+server<span class="tok-pun">.</span><span class="tok-fn">listen</span><span class="tok-pun">(</span><span class="tok-num">3000</span><span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">http-server.js</div><div class="spacer"></div><div class="seg right">21 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · BUILDING A WEB SERVER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">web-server.js</div>
+        <div class="breadcrumb">lecture07 / <b>building-a-web-server</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">routes, by hand</div>
+        <h2 class="title reveal">Building a <span class="hl">Web Server</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A <strong>route</strong> is a section of code that handles a request for a specific HTTP method + URL path</li>
+                    <li><strong>Static</strong> website — same file(s) served every time</li>
+                    <li><strong>Dynamic</strong> website — response built per-request, from code/data</li>
+                </ul>
+            </div>
+            <div class="codeblock xs">
+                <div class="cb-bar">web-server.js</div>
+                <pre><span class="tok-kw">const</span> <span class="tok-pun">{</span> url<span class="tok-pun">,</span> method <span class="tok-pun">}</span> <span class="tok-op">=</span> req<span class="tok-pun">;</span>
+<span class="tok-kw">if</span> <span class="tok-pun">(</span>method <span class="tok-op">===</span> <span class="tok-str">'GET'</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>url <span class="tok-op">===</span> <span class="tok-str">'/'</span><span class="tok-pun">) {</span>
+    res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">(</span><span class="tok-str">'this is the home page'</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">else if</span> <span class="tok-pun">(</span>url <span class="tok-op">===</span> <span class="tok-str">'/about'</span><span class="tok-pun">) {</span>
+    res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">(</span><span class="tok-str">'this is the about page'</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">else</span> <span class="tok-pun">{</span>
+    res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">(</span><span class="tok-str">'this is the 404 page'</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">web-server.js</div><div class="spacer"></div><div class="seg right">22 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · USE MODULE TO BUILD A STATIC WEB SERVER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture07 / <b>static-web-server-steps</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">from empty folder to running server</div>
+        <h2 class="title reveal">Build a Static Web <span class="hl">Server</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list" style="gap:14px;">
+                    <li><strong>1.</strong> New folder for the project</li>
+                    <li><strong>2.</strong> Create <code class="icode">package.json</code></li>
+                    <li><strong>3.</strong> Install npm modules</li>
+                    <li><strong>4.</strong> Implement server code</li>
+                    <li><strong>5.</strong> Create a static folder + files</li>
+                    <li><strong>6.</strong> Run the server</li>
+                </ul>
+            </div>
+            <div class="codeblock reveal">
+                <div class="cb-bar">terminal</div>
+                <pre><span class="tok-fn">mkdir</span> my-server <span class="tok-op">&amp;&amp;</span> <span class="tok-kw">cd</span> my-server
+<span class="tok-fn">npm</span> init -y
+<span class="tok-fn">npm</span> install express
+<span class="tok-com">// implement server code...</span>
+<span class="tok-fn">mkdir</span> public
+<span class="tok-fn">npm</span> start</pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">23 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · SYNC VS ASYNC ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sync-vs-async.js</div>
+        <div class="breadcrumb">lecture07 / <b>sync-vs-async</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">why it matters on a server</div>
+        <h2 class="title reveal">Sync <span class="hl">vs.</span> Async</h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">sync-vs-async.js</div>
+            <pre><span class="tok-com">// ❌ Synchronous — blocks the ENTIRE server</span>
+<span class="tok-kw">const</span> data <span class="tok-op">=</span> fs<span class="tok-pun">.</span><span class="tok-fn">readFileSync</span><span class="tok-pun">(</span><span class="tok-str">'large-file.json'</span><span class="tok-pun">,</span> <span class="tok-str">'utf-8'</span><span class="tok-pun">);</span>
+<span class="tok-fn">processData</span><span class="tok-pun">(</span>data<span class="tok-pun">);</span>
+
+<span class="tok-com">// ✅ Asynchronous — server keeps handling other requests</span>
+fs<span class="tok-pun">.</span><span class="tok-fn">readFile</span><span class="tok-pun">(</span><span class="tok-str">'large-file.json'</span><span class="tok-pun">,</span> <span class="tok-str">'utf-8'</span><span class="tok-pun">, (</span>err<span class="tok-pun">,</span> data<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>err<span class="tok-pun">)</span> <span class="tok-kw">throw</span> err<span class="tok-pun">;</span>
+  <span class="tok-fn">processData</span><span class="tok-pun">(</span>data<span class="tok-pun">);</span>
+<span class="tok-pun">});</span>
+
+<span class="tok-com">// ✅ Promise-based (modern, recommended)</span>
+<span class="tok-kw">import</span> <span class="tok-pun">{</span> readFile <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'fs/promises'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> data2 <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">readFile</span><span class="tok-pun">(</span><span class="tok-str">'large-file.json'</span><span class="tok-pun">,</span> <span class="tok-str">'utf-8'</span><span class="tok-pun">);</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">In a server, <b>never use sync methods</b> (<code class="icode">readFileSync</code>, <code class="icode">writeFileSync</code>) — they block the event loop and freeze <em style="color:var(--red);">every other request</em> until they finish.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sync-vs-async.js</div><div class="spacer"></div><div class="seg right">24 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture07</div>
+        <div class="breadcrumb">lecture07 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🔁 Runtime</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Single-threaded + event loop, powered by <strong style="color:var(--fg);">libuv</strong></li>
+                    <li style="font-size:20px;">Layered: App → Node Core → Event Loop/V8 → OS</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>📦 Modules</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">CommonJS (<code class="icode">require</code>) vs ESModule (<code class="icode">import</code>)</li>
+                    <li style="font-size:20px;">Core, local, and third-party (npm) modules</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🌐 Building a Server</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code class="icode">http.createServer()</code> + routes</li>
+                    <li style="font-size:20px;">Static vs. dynamic responses</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>⚡ Sync vs. Async</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Never block the event loop on a server</li>
+                    <li style="font-size:20px;">Prefer Promise-based APIs (<code class="icode">fs/promises</code>)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> Express.js &amp; MVC Pattern
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture07</div><div class="spacer"></div><div class="seg right">25 / 25</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture7-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture7.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

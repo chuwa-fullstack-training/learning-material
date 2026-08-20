@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 8 — Express.js &amp; MVC Pattern</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–7) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ node app.js</span></div>
+            <div class="term-out">› Loading: routing · middleware · templates · MVC</div>
+            <div class="section-num">Lecture 08</div>
+            <h1>Express.js <span class="hl">&amp; MVC</span></h1>
+            <div class="by">// Framework Patterns<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Architecture understanding is primary, boilerplate AI-assisted.</b> MVC layering logic and middleware execution order must be understood. Project initialization and config can use AI, but you must be able to explain what each middleware does.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overview.js</div>
+        <div class="breadcrumb">lecture08 / <b>topics-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Express.js <span class="hl">&amp; MVC</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>🚂 What is Express?</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">A minimal, un-opinionated web framework built on Node's <code class="icode">http</code> module.</p>
+            </div>
+            <div class="col-card accent-cyan">
+                <h3>🖥️ SSR</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Server-side rendering with a template engine — HTML generated per request.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>📡 API</h3>
+                <p style="font-size:22px;color:var(--fg-dim);line-height:1.5;">Serving JSON instead of HTML — the backend for a separate frontend.</p>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">By the end, you'll also know the <b>MVC pattern</b> and how <b>middleware</b> chains requests through your app.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">overview.js</div><div class="spacer"></div><div class="seg right">02 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · WHAT IS EXPRESS.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">express.js</div>
+        <div class="breadcrumb">lecture08 / <b>what-is-express</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pitch</div>
+        <h2 class="title reveal">What Is <span class="hl">Express.js</span>?</h2>
+        <ul class="list reveal">
+            <li>A <strong>fast, un-opinionated, minimalist</strong> web application framework for Node.js</li>
+            <li><strong>Minimalist</strong> — few built-in features; it gives you flexibility to add what you need</li>
+            <li><strong>Un-opinionated</strong> — no forced ORM or template engine, use whatever fits</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">expressjs.com — the framework nearly every Node backend course starts with, and most production Node APIs still use.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">express.js</div><div class="spacer"></div><div class="seg right">03 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · WHY EXPRESS.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why-express.js</div>
+        <div class="breadcrumb">lecture08 / <b>why-expressjs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the case for it</div>
+        <h2 class="title reveal">Why <span class="hl">Express.js</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>🧩 Un-opinionated</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">You choose the pieces.</p></div>
+            <div class="col-card accent-cyan" style="padding:26px 24px;"><h3>🔌 Pluggable</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Flexible middleware stack.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>🎨 Any Template Engine</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Pug, EJS, Handlebars…</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>🗄️ Any Database</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">MongoDB, MySQL, PostgreSQL…</p></div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why-express.js</div><div class="spacer"></div><div class="seg right">04 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · FIRST APP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">first.js</div>
+        <div class="breadcrumb">lecture08 / <b>first-app</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">five lines to a server</div>
+        <h2 class="title reveal">First App With <span class="hl">Express.js</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">first.js</div>
+            <pre><span class="tok-kw">const</span> express <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'express'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> app <span class="tok-op">=</span> <span class="tok-fn">express</span><span class="tok-pun">();</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span><span class="tok-str">'Hello World!'</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">listen</span><span class="tok-pun">(</span><span class="tok-num">3000</span><span class="tok-pun">, () =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Example app listening on port 3000!'</span><span class="tok-pun">);</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Compare this to the raw <code class="icode">http.createServer()</code> from Lecture 7 — Express replaces manual method/URL branching with <code class="icode">app.get()</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">first.js</div><div class="spacer"></div><div class="seg right">05 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · STATIC SITE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">static-site.js</div>
+        <div class="breadcrumb">lecture08 / <b>static-site</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one line, a whole folder</div>
+        <h2 class="title reveal">Static <span class="hl">Site</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><code class="icode">express.static()</code> serves an entire folder of files as-is</li>
+                    <li>No route needed per file — HTML, CSS, JS, images all just work</li>
+                    <li>Same response every time for the same path — nothing computed per request</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">static-site.js</div>
+                <pre>app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span>express<span class="tok-pun">.</span><span class="tok-fn">static</span><span class="tok-pun">(</span><span class="tok-str">'public'</span><span class="tok-pun">));</span>
+
+<span class="tok-com">// public/about.html is now served at</span>
+<span class="tok-com">// GET /about.html — automatically</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">static-site.js</div><div class="spacer"></div><div class="seg right">06 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · DYNAMIC SITE (SSR) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">dynamic-site.js</div>
+        <div class="breadcrumb">lecture08 / <b>dynamic-site-ssr</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">HTML, built per request</div>
+        <h2 class="title reveal">Dynamic Site <span class="hl">— SSR</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><code class="icode">app.set('view engine', ...)</code> picks the template engine</li>
+                    <li><code class="icode">res.render()</code> fills a template with data and sends real HTML</li>
+                    <li>Same page, different content — depends on what's passed in</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">dynamic-site.js</div>
+                <pre>app<span class="tok-pun">.</span><span class="tok-fn">set</span><span class="tok-pun">(</span><span class="tok-str">'view engine'</span><span class="tok-pun">,</span> <span class="tok-str">'pug'</span><span class="tok-pun">);</span>
+app<span class="tok-pun">.</span><span class="tok-fn">set</span><span class="tok-pun">(</span><span class="tok-str">'views'</span><span class="tok-pun">,</span> <span class="tok-str">'./views'</span><span class="tok-pun">);</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">render</span><span class="tok-pun">(</span><span class="tok-str">'index'</span><span class="tok-pun">, {</span>
+    title<span class="tok-pun">:</span> <span class="tok-str">'Hey'</span><span class="tok-pun">,</span>
+    message<span class="tok-pun">:</span> <span class="tok-str">'Hello there!'</span>
+  <span class="tok-pun">});</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">dynamic-site.js</div><div class="spacer"></div><div class="seg right">07 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · SECTION DIVIDER: TEMPLATES & APIS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">views/index.pug</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture08</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">Templates <span class="hl">&amp; APIs</span></div>
+            <div class="by" style="margin-top:18px;">Pug · JSON · params, query, routes<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 09 · TEMPLATE ENGINE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">views/</div>
+        <div class="breadcrumb">lecture08 / <b>template-engine</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">data + markup → real HTML</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:8px;">Template <span class="hl">Engine</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 520" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="te-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <!-- Database -->
+          <rect x="80" y="30" width="440" height="130" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="300" y="82" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#7aa2f7">Database</text>
+          <text x="300" y="112" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">{ name: 'Aaron' }, { name: 'Alex' }…</text>
+
+          <!-- Web Template -->
+          <rect x="1080" y="30" width="440" height="130" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1300" y="66" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#ff9e64">Web Template</text>
+          <text x="1300" y="98" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">&lt;div&gt;Hello #{name}&lt;/div&gt;</text>
+          <text x="1300" y="126" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">index.pug</text>
+
+          <!-- Template Engine -->
+          <rect x="480" y="230" width="640" height="120" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="800" y="278" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#bb9af7">⚙️ Template Engine</text>
+          <text x="800" y="308" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">Pug · EJS · Handlebars</text>
+
+          <!-- Outputs -->
+          <rect x="180" y="420" width="440" height="90" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="400" y="458" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#9ece6a">"Hello Aaron"</text>
+          <text x="400" y="484" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">rendered html — request 1</text>
+
+          <rect x="980" y="420" width="440" height="90" rx="10" fill="#1f2335" stroke="#73daca" stroke-width="2"/>
+          <text x="1200" y="458" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#73daca">"Hello Alex"</text>
+          <text x="1200" y="484" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">rendered html — request 2</text>
+
+          <!-- Arrows in -->
+          <path d="M340,160 L720,225" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#te-a)"/>
+          <path d="M1260,160 L880,225" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#te-a)"/>
+          <!-- Arrows out -->
+          <path d="M680,352 L410,417" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#te-a)"/>
+          <path d="M920,352 L1190,417" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#te-a)"/>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">One template + different data in = <b>different HTML out</b>, every request — that's the whole idea of server-side rendering.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">views/</div><div class="spacer"></div><div class="seg right">09 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · TEMPLATE ENGINE - PUG ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">index.pug</div>
+        <div class="breadcrumb">lecture08 / <b>template-engine-pug</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">indentation instead of tags</div>
+        <h2 class="title reveal">Template Engine <span class="hl">— Pug</span></h2>
+        <div class="split eq reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">views/index.pug</div>
+                <pre>html
+  head
+    title<span class="tok-op">=</span> title
+  body
+    h1 <span class="tok-pun">#{</span>message<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">compiles to</div>
+                <pre><span class="tok-pun">&lt;</span>html<span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;</span>head<span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span>title<span class="tok-pun">&gt;</span>Hey<span class="tok-pun">&lt;/</span>title<span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span>head<span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;</span>body<span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span>h1<span class="tok-pun">&gt;</span>Hello there!<span class="tok-pun">&lt;/</span>h1<span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span>body<span class="tok-pun">&gt;</span>
+<span class="tok-pun">&lt;/</span>html<span class="tok-pun">&gt;</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">No closing tags, no angle brackets — indentation defines nesting. <code class="icode">= title</code> and <code class="icode">#{message}</code> both inject values passed from <code class="icode">res.render()</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">index.pug</div><div class="spacer"></div><div class="seg right">10 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · API ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">api.md</div>
+        <div class="breadcrumb">lecture08 / <b>api</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the other kind of response</div>
+        <h2 class="title reveal"><span class="hl">API</span></h2>
+        <ul class="list reveal">
+            <li><strong>A</strong>pplication <strong>P</strong>rogramming <strong>I</strong>nterface</li>
+            <li>A set of clearly defined methods of communication between software components</li>
+            <li><strong style="color:var(--cyan);">REST API</strong> — Representational State Transfer (its own lecture, coming soon)</li>
+            <li>The data format of choice: <strong>JSON</strong></li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">Same Express app, different <code class="icode">res</code> method: <code class="icode">res.render()</code> for HTML pages, <code class="icode">res.json()</code> for an API.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">api.md</div><div class="spacer"></div><div class="seg right">11 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · JSON BASICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">users.json</div>
+        <div class="breadcrumb">lecture08 / <b>json-basics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">javascript object notation</div>
+        <h2 class="title reveal"><span class="hl">JSON</span> Basics</h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A <strong>lightweight</strong> data-interchange format</li>
+                    <li>Easy for humans to read and write</li>
+                    <li>Easy for machines to parse and generate</li>
+                    <li>Built on two structures: a collection of <strong>name/value pairs</strong>, and an ordered <strong>list of values</strong></li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">GET api.github.com/users/chuwa-fullstack-training</div>
+                <pre><span class="tok-pun">{</span>
+  <span class="tok-cls">"login"</span><span class="tok-pun">:</span> <span class="tok-str">"chuwa-fullstack-training"</span><span class="tok-pun">,</span>
+  <span class="tok-cls">"type"</span><span class="tok-pun">:</span> <span class="tok-str">"Organization"</span><span class="tok-pun">,</span>
+  <span class="tok-cls">"public_repos"</span><span class="tok-pun">:</span> <span class="tok-num">12</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">users.json</div><div class="spacer"></div><div class="seg right">12 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · PARAMS, QUERY STRING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">params.js</div>
+        <div class="breadcrumb">lecture08 / <b>params-query-string</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two ways data rides in the URL</div>
+        <h2 class="title reveal">Params, <span class="hl">Query String</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label good">req.params — part of the path</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">GET /users/42</div>
+                    <pre>app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users/:userId'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>params<span class="tok-pun">.</span>userId<span class="tok-pun">);</span>
+<span class="tok-pun">});</span> <span class="tok-out">// '42'</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">req.query — after the ?</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">GET /users?role=admin</div>
+                    <pre>app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>query<span class="tok-pun">);</span>
+<span class="tok-pun">});</span> <span class="tok-out">// { role: 'admin' }</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">Use params for <b>identifying a resource</b> (which user?), query for <b>filtering/options</b> (which subset, sorted how?).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">params.js</div><div class="spacer"></div><div class="seg right">13 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · URL ENCODING AND DECODING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">url-encode.md</div>
+        <div class="breadcrumb">lecture08 / <b>url-encoding</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">making special characters URL-safe</div>
+        <h2 class="title reveal">URL <span class="hl">Encoding</span> &amp; Decoding</h2>
+        <p class="lead-in reveal">Translates characters that have special meaning in a URL (like <code class="icode">&amp;</code>, <code class="icode">?</code>, <code class="icode">space</code>) into a form every browser and server agrees on.</p>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ ambiguous — is "encoding" a value or a new param?</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">raw</div>
+                    <pre>https<span class="tok-pun">://</span>google<span class="tok-pun">.</span>com<span class="tok-pun">/</span>search<span class="tok-op">?</span>q<span class="tok-op">=</span>url<span class="tok-op">&amp;</span>encoding</pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">✅ unambiguous — the literal & is escaped</div>
+                <div class="codeblock sm">
+                    <div class="cb-bar">encoded</div>
+                    <pre>https<span class="tok-pun">://</span>google<span class="tok-pun">.</span>com<span class="tok-pun">/</span>search<span class="tok-op">?</span>q<span class="tok-op">=</span>url<span class="tok-str">%26</span>encoding</pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">Express (and most frameworks) encode/decode this for you automatically — but it's worth recognizing <code class="icode">%XX</code> sequences when debugging a URL.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">url-encode.md</div><div class="spacer"></div><div class="seg right">14 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · ROUTE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">route.js</div>
+        <div class="breadcrumb">lecture08 / <b>route</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">verb + path + handler</div>
+        <h2 class="title reveal"><span class="hl">Route</span></h2>
+        <p class="lead-in reveal">A route is a section of Express code that associates an <strong style="color:var(--cyan);">HTTP verb</strong> (GET, POST, PUT, DELETE…), a <strong style="color:var(--orange);">URL path/pattern</strong>, and a <strong>function</strong> called to handle it.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">route.js</div>
+            <pre><span class="tok-kw">const</span> userRouter <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'./routers/user'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> postRouter <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'./routers/post'</span><span class="tok-pun">);</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api'</span><span class="tok-pun">,</span> userRouter<span class="tok-pun">);</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api'</span><span class="tok-pun">,</span> postRouter<span class="tok-pun">);</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">route.js</div><div class="spacer"></div><div class="seg right">15 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · SECTION DIVIDER: MVC & MIDDLEWARE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">middleware.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture08</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">MVC &amp; <span class="hl">Middleware</span></div>
+            <div class="by" style="margin-top:18px;">separation of concerns · request pipeline<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 17 · MVC PATTERN ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mvc-index.js</div>
+        <div class="breadcrumb">lecture08 / <b>mvc-pattern</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">separating concerns</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:8px;"><span class="hl">MVC</span> Pattern</h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 560" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="mvc-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <!-- View top-left -->
+          <rect x="60" y="40" width="420" height="140" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="270" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#7aa2f7">View</text>
+          <text x="270" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">templates · what the user sees</text>
+
+          <!-- Controller top-right -->
+          <rect x="1120" y="40" width="420" height="140" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1330" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#bb9af7">Controller</text>
+          <text x="1330" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">handles req/res, orchestrates</text>
+
+          <!-- Model bottom-right -->
+          <rect x="1120" y="380" width="420" height="140" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1330" y="440" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#ff9e64">Model</text>
+          <text x="1330" y="470" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">data &amp; business logic</text>
+
+          <!-- User bottom-left -->
+          <rect x="60" y="380" width="420" height="140" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="270" y="440" text-anchor="middle" font-family="JetBrains Mono" font-size="24" font-weight="700" fill="#9ece6a">🧑 User</text>
+          <text x="270" y="470" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">clicks, submits forms</text>
+
+          <!-- Arrows -->
+          <path d="M270,380 L270,184" stroke="#9ece6a" stroke-width="2.5" fill="none" marker-end="url(#mvc-a)"/>
+          <text x="290" y="290" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#9ece6a">interacts</text>
+
+          <path d="M484,95 L1116,95" stroke="#7aa2f7" stroke-width="2.5" fill="none" marker-end="url(#mvc-a)"/>
+          <text x="800" y="80" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7aa2f7">routes request</text>
+
+          <path d="M1330,184 L1330,376" stroke="#bb9af7" stroke-width="2.5" fill="none" marker-end="url(#mvc-a)"/>
+          <text x="1350" y="290" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#bb9af7">queries</text>
+
+          <path d="M1120,470 L490,160" stroke="#ff9e64" stroke-width="2.5" fill="none" marker-end="url(#mvc-a)"/>
+          <text x="820" y="330" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#ff9e64">returns data → renders view</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">User <b style="color:var(--green);">interacts</b> with the View → View <b style="color:var(--blue);">routes</b> the request to a Controller → Controller <b style="color:var(--purple);">queries</b> the Model → Model's data flows back and gets <b style="color:var(--orange);">rendered</b> into a View again.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mvc-index.js</div><div class="spacer"></div><div class="seg right">17 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · MVC: FILE ORGANIZATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">project/</div>
+        <div class="breadcrumb">lecture08 / <b>mvc-file-organization</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">where each layer lives</div>
+        <h2 class="title reveal">MVC: <span class="hl">File Organization</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">project/</div>
+            <pre>project/
+├── controllers/       <span class="tok-com">// Handle HTTP req/res</span>
+│   └── userController.js
+├── models/            <span class="tok-com">// Data and business logic</span>
+│   └── userModel.js
+├── routers/           <span class="tok-com">// Route definitions</span>
+│   └── userRouter.js
+├── middleware/         <span class="tok-com">// Reusable middleware</span>
+│   └── auth.js
+├── views/             <span class="tok-com">// Templates (if SSR)</span>
+├── public/            <span class="tok-com">// Static files</span>
+└── index.js           <span class="tok-com">// App entry point</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">This separation keeps code organized as the project grows: <b>controllers</b> handle HTTP, <b>models</b> handle data, <b>routers</b> map URLs to controllers.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">project/</div><div class="spacer"></div><div class="seg right">18 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · MIDDLEWARE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">middleware.js</div>
+        <div class="breadcrumb">lecture08 / <b>middleware</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pipeline between request and response</div>
+        <h2 class="title reveal"><span class="hl">Middleware</span></h2>
+        <p class="lead-in reveal">A middleware function has access to <code class="icode">req</code>, <code class="icode">res</code>, and <code class="icode">next</code> — the next middleware in the chain.</p>
+        <ul class="list reveal">
+            <li>Execute any code</li>
+            <li>Make changes to <code class="icode">req</code> and <code class="icode">res</code></li>
+            <li>End the request-response cycle</li>
+            <li>Call <code class="icode">next()</code> to pass control onward</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">middleware.js</div><div class="spacer"></div><div class="seg right">19 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · MIDDLEWARE EXECUTION FLOW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">middleware.js</div>
+        <div class="breadcrumb">lecture08 / <b>middleware-execution-flow</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">order matters</div>
+        <h2 class="title reveal">Middleware <span class="hl">Execution Flow</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">middleware.js</div>
+            <pre><span class="tok-com">// Logger — runs for every request</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">((</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">`</span><span class="tok-pun">${</span>req<span class="tok-pun">.</span>method<span class="tok-pun">}</span><span class="tok-str"> </span><span class="tok-pun">${</span>req<span class="tok-pun">.</span>url<span class="tok-pun">}</span><span class="tok-str">`</span><span class="tok-pun">);</span>
+  <span class="tok-fn">next</span><span class="tok-pun">();</span> <span class="tok-com">// pass to next middleware</span>
+<span class="tok-pun">});</span>
+<span class="tok-com">// Auth — only runs for /api routes</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-str">'/api'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>req<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>authorization<span class="tok-pun">) {</span>
+    <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> error<span class="tok-pun">:</span> <span class="tok-str">'Unauthorized'</span> <span class="tok-pun">});</span>
+  <span class="tok-pun">}</span>
+  <span class="tok-fn">next</span><span class="tok-pun">();</span>
+<span class="tok-pun">});</span>
+<span class="tok-com">// Route handler — the final "middleware"</span>
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">(</span>users<span class="tok-pun">);</span> <span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">Forget <code class="icode">next()</code> → the request <b>hangs forever</b>. Forget <code class="icode">return</code> before <code class="icode">res.send()</code> → "headers already sent" errors.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">middleware.js</div><div class="spacer"></div><div class="seg right">20 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · ERROR HANDLING MIDDLEWARE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">error-handler.js</div>
+        <div class="breadcrumb">lecture08 / <b>error-handling-middleware</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the 4-parameter signature</div>
+        <h2 class="title reveal">Error Handling <span class="hl">Middleware</span></h2>
+        <p class="lead-in reveal">Express error middleware takes <strong style="color:var(--cyan);">4 parameters</strong> — that's how Express tells it apart from regular middleware.</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">error-handler.js — must be the LAST app.use</div>
+            <pre><span class="tok-com">// Error handler — 4 params: (err, req, res, next)</span>
+app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">((</span>err<span class="tok-pun">,</span> req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-fn">console</span><span class="tok-pun">.</span><span class="tok-fn">error</span><span class="tok-pun">(</span>err<span class="tok-pun">.</span>stack<span class="tok-pun">);</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span>err<span class="tok-pun">.</span>status <span class="tok-op">||</span> <span class="tok-num">500</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> error<span class="tok-pun">:</span> err<span class="tok-pun">.</span>message <span class="tok-pun">});</span>
+<span class="tok-pun">});</span>
+
+<span class="tok-com">// A route that forwards its error</span>
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/api/users/:id'</span><span class="tok-pun">,</span> <span class="tok-kw">async</span> <span class="tok-pun">(</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> user <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">findUser</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>params<span class="tok-pun">.</span>id<span class="tok-pun">);</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(!</span>user<span class="tok-pun">)</span> <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">404</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> error<span class="tok-pun">:</span> <span class="tok-str">'Not found'</span> <span class="tok-pun">});</span>
+    res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">(</span>user<span class="tok-pun">);</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">catch</span> <span class="tok-pun">(</span>err<span class="tok-pun">) {</span> <span class="tok-fn">next</span><span class="tok-pun">(</span>err<span class="tok-pun">);</span> <span class="tok-pun">}</span> <span class="tok-com">// forward to error handler</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">error-handler.js</div><div class="spacer"></div><div class="seg right">21 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · ROUTER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">routers/user.js</div>
+        <div class="breadcrumb">lecture08 / <b>router</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a mini-application</div>
+        <h2 class="title reveal"><span class="hl">Router</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Router-level middleware works like app-level middleware, bound to an <code class="icode">express.Router()</code> instance</li>
+                    <li>A router is an isolated instance of middleware and routes — a "mini-app"</li>
+                    <li>Every Express app has a built-in app router; custom routers let you organize by resource</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">routers/user.js</div>
+                <pre><span class="tok-kw">const</span> router <span class="tok-op">=</span> express<span class="tok-pun">.</span><span class="tok-cls">Router</span><span class="tok-pun">();</span>
+
+<span class="tok-com">// mounted at /api in route.js</span>
+router<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users'</span><span class="tok-pun">,</span> userController<span class="tok-pun">.</span>getAllUsers<span class="tok-pun">);</span>
+router<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/users/:id'</span><span class="tok-pun">,</span> userController<span class="tok-pun">.</span>getUserById<span class="tok-pun">);</span>
+
+<span class="tok-kw">module</span><span class="tok-pun">.</span>exports <span class="tok-op">=</span> router<span class="tok-pun">;</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">routers/user.js</div><div class="spacer"></div><div class="seg right">22 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · APP OBJECT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">app-object.js</div>
+        <div class="breadcrumb">lecture08 / <b>app-object</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the methods you'll call constantly</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">app</code> <span class="hl">Object</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>HTTP verbs</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:24px;"><code class="icode">app.get()</code></li>
+                    <li style="font-size:24px;"><code class="icode">app.post()</code></li>
+                    <li style="font-size:24px;"><code class="icode">app.put()</code></li>
+                    <li style="font-size:24px;"><code class="icode">app.delete()</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>App-level setup</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:24px;"><code class="icode">app.all()</code> — any HTTP method</li>
+                    <li style="font-size:24px;"><code class="icode">app.use()</code> — mount middleware</li>
+                    <li style="font-size:24px;"><code class="icode">app.listen()</code> — start the server</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">app-object.js</div><div class="spacer"></div><div class="seg right">23 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · REQ & RES OBJECTS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">req-res.js</div>
+        <div class="breadcrumb">lecture08 / <b>req-res-objects</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's on every handler's arguments</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">req</code> &amp; <code style="font-family:inherit;">res</code> <span class="hl">Objects</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>req — the incoming request</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:24px;"><code class="icode">req.params</code></li>
+                    <li style="font-size:24px;"><code class="icode">req.query</code></li>
+                    <li style="font-size:24px;"><code class="icode">req.body</code></li>
+                    <li style="font-size:24px;"><code class="icode">req.headers</code></li>
+                    <li style="font-size:24px;"><code class="icode">req.cookies</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>res — the outgoing response</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:24px;"><code class="icode">res.send()</code></li>
+                    <li style="font-size:24px;"><code class="icode">res.json()</code></li>
+                    <li style="font-size:24px;"><code class="icode">res.render()</code></li>
+                    <li style="font-size:24px;"><code class="icode">res.redirect()</code></li>
+                    <li style="font-size:24px;"><code class="icode">res.status()</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">req-res.js</div><div class="spacer"></div><div class="seg right">24 / 25</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture08</div>
+        <div class="breadcrumb">lecture08 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🚂 Express Basics</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Routing, static files, template engines</li>
+                    <li style="font-size:20px;">SSR (<code class="icode">res.render</code>) vs API (<code class="icode">res.json</code>)</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>📦 req / res</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Key properties on each object</li>
+                    <li style="font-size:20px;"><code class="icode">req.params</code> vs <code class="icode">req.query</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🔗 Middleware</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Execution order, <code class="icode">next()</code></li>
+                    <li style="font-size:20px;">4-param error handlers</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🏗️ MVC</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Separation of concerns</li>
+                    <li style="font-size:20px;">Routers as modular "mini-apps"</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> Databases — PostgreSQL &amp; MongoDB
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture08</div><div class="spacer"></div><div class="seg right">25 / 25</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture8-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture8.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

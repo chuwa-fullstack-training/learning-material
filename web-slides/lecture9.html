@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 9 — Databases &amp; Data Modeling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–8) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ psql -U postgres</span></div>
+            <div class="term-out">› Loading: relational · ACID · SQL · MongoDB · schema design</div>
+            <div class="section-num">Lecture 09</div>
+            <h1>Databases <span class="hl">&amp; Modeling</span></h1>
+            <div class="by">// Persisting State<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Schema design must be your own work. CRUD operations can be compared with AI.</b> Data modeling is an architectural decision — don't outsource it to AI. For CRUD operations, use the "AI Comparison" exercise format.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">overview.md</div>
+        <div class="breadcrumb">lecture09 / <b>topics-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Databases <span class="hl">&amp; Data Modeling</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>🗄️ Database</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">A structured collection of persistent data.</p></div>
+            <div class="col-card accent-cyan" style="padding:26px 24px;"><h3>⚙️ DBMS</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Software that manages a database.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>📊 Relational</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Tables, rows, and strict schemas.</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>📄 NoSQL</h3><p style="font-size:18px;color:var(--fg-dim);line-height:1.4;">Documents, flexible schemas.</p></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">We'll go deep on both worlds: <b>PostgreSQL</b> (relational, ACID) and <b>MongoDB</b> (document, schema-flexible) — and the design decisions each one forces on you.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">overview.md</div><div class="spacer"></div><div class="seg right">02 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · RELATIONAL VS NOSQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture09 / <b>relational-vs-nosql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two data models</div>
+        <h2 class="title reveal">Relational <span class="hl">vs.</span> NoSQL</h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>📊 Relational</h3>
+                <p style="font-size:20px;color:var(--fg-dim);">PostgreSQL, SQLite, Oracle…</p>
+                <ul class="list" style="gap:8px;">
+                    <li style="font-size:22px;">Data model: <strong>tables</strong> + <strong>relationships</strong></li>
+                    <li style="font-size:22px;">Operations: CRUD (via SQL)</li>
+                    <li style="font-size:22px;">Access: GUI, or API/ODBC/JDBC</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>📄 NoSQL</h3>
+                <p style="font-size:20px;color:var(--fg-dim);">MongoDB, Redis, Cassandra…</p>
+                <ul class="list" style="gap:8px;">
+                    <li style="font-size:22px;">Data model: <strong>documents</strong> + <strong>collections</strong></li>
+                    <li style="font-size:22px;">Operations: CRUD (via driver)</li>
+                    <li style="font-size:22px;">Access: GUI, or API — mongoose for JS</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">03 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · RELATIONAL DATA MODEL: ANATOMY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">table.sql</div>
+        <div class="breadcrumb">lecture09 / <b>relational-data-model</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">the anatomy of a table</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:12px;">Relational <span class="hl">Data Model</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 480" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs></defs>
+          <text x="500" y="86" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#c0caf5">Company opening status</text>
+          <!-- table grid: 3 cols x 4 rows (header + 3 data) -->
+          <rect x="400" y="106" width="800" height="330" fill="none" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="666" y1="106" x2="666" y2="436" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="933" y1="106" x2="933" y2="436" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="400" y1="188" x2="1200" y2="188" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="400" y1="270" x2="1200" y2="270" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="400" y1="353" x2="1200" y2="353" stroke="#2a2e45" stroke-width="2"/>
+          <!-- header row -->
+          <text x="533" y="154" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7dcfff">ID</text>
+          <text x="800" y="154" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7dcfff">CompanyName</text>
+          <text x="1066" y="154" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7dcfff">Status</text>
+          <!-- rows -->
+          <text x="533" y="236" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">1</text>
+          <text x="800" y="236" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">Google</text>
+          <text x="1066" y="236" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#9ece6a">Active</text>
+          <text x="533" y="319" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">2</text>
+          <text x="800" y="319" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">Amazon</text>
+          <text x="1066" y="319" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#f7768e">Inactive</text>
+          <text x="533" y="401" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">3</text>
+          <text x="800" y="401" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#c0caf5">Apple</text>
+          <text x="1066" y="401" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="#9ece6a">Active</text>
+
+          <!-- callout 1: Table name — bracket spanning the title text -->
+          <path d="M497,66 L497,56 L805,56 L805,66" stroke="#bb9af7" stroke-width="2.5" fill="none"/>
+          <text x="651" y="38" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#bb9af7">Table name</text>
+
+          <!-- callout 2: Column / Attribute — bracket spanning the Status column -->
+          <path d="M933,96 L933,86 L1200,86 L1200,96" stroke="#ff9e64" stroke-width="2.5" fill="none"/>
+          <text x="1066" y="68" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#ff9e64">Column / Attribute</text>
+
+          <!-- callout 3: Tuple / Row — bracket spanning the highlighted row -->
+          <path d="M1210,353 L1222,353 L1222,436 L1210,436" stroke="#9ece6a" stroke-width="2.5" fill="none"/>
+          <text x="1236" y="402" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9ece6a">Tuple / Row</text>
+        </svg>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">table.sql</div><div class="spacer"></div><div class="seg right">04 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · RELATIONAL DATA MODEL: RELATIONSHIPS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">join.sql</div>
+        <div class="breadcrumb">lecture09 / <b>relational-relationships</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">tables connect through keys, not copies</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:8px;">Relational <span class="hl">Relationships</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 500" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rj-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <!-- Company table -->
+          <text x="330" y="34" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#7aa2f7">Company opening status</text>
+          <rect x="80" y="50" width="500" height="130" fill="none" stroke="#7aa2f7" stroke-width="2"/>
+          <line x1="230" y1="50" x2="230" y2="180" stroke="#7aa2f7" stroke-width="1.5"/>
+          <line x1="80" y1="94" x2="580" y2="94" stroke="#7aa2f7" stroke-width="1.5"/>
+          <line x1="80" y1="138" x2="580" y2="138" stroke="#7aa2f7" stroke-width="1.5"/>
+          <text x="155" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">ID</text>
+          <text x="405" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">CompanyName</text>
+          <text x="155" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">3</text>
+          <text x="405" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Apple</text>
+          <text x="155" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">2</text>
+          <text x="405" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Walmart</text>
+
+          <!-- Interviewee table -->
+          <text x="1270" y="34" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#ff9e64">Interviewee</text>
+          <rect x="1020" y="50" width="500" height="130" fill="none" stroke="#ff9e64" stroke-width="2"/>
+          <line x1="1170" y1="50" x2="1170" y2="180" stroke="#ff9e64" stroke-width="1.5"/>
+          <line x1="1020" y1="94" x2="1520" y2="94" stroke="#ff9e64" stroke-width="1.5"/>
+          <line x1="1020" y1="138" x2="1520" y2="138" stroke="#ff9e64" stroke-width="1.5"/>
+          <text x="1095" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">ID</text>
+          <text x="1345" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">Name / Company</text>
+          <text x="1095" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">1</text>
+          <text x="1345" y="122" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Aaron / Apple</text>
+          <text x="1095" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">2</text>
+          <text x="1345" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Alex / Walmart</text>
+
+          <!-- Junction table -->
+          <text x="800" y="290" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">interviews (junction table)</text>
+          <rect x="470" y="308" width="660" height="150" fill="none" stroke="#bb9af7" stroke-width="2"/>
+          <line x1="690" y1="308" x2="690" y2="458" stroke="#bb9af7" stroke-width="1.5"/>
+          <line x1="910" y1="308" x2="910" y2="458" stroke="#bb9af7" stroke-width="1.5"/>
+          <line x1="470" y1="352" x2="1130" y2="352" stroke="#bb9af7" stroke-width="1.5"/>
+          <line x1="470" y1="396" x2="1130" y2="396" stroke="#bb9af7" stroke-width="1.5"/>
+          <text x="580" y="336" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">company_id</text>
+          <text x="800" y="336" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">interviewee_id</text>
+          <text x="1020" y="336" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">status</text>
+          <text x="580" y="380" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">3</text>
+          <text x="800" y="380" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">1</text>
+          <text x="1020" y="380" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9ece6a">offered</text>
+          <text x="580" y="424" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">2</text>
+          <text x="800" y="424" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">2</text>
+          <text x="1020" y="424" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#e0af68">pending</text>
+
+          <!-- arrows converging -->
+          <path d="M300,180 L680,305" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#rj-a)"/>
+          <path d="M1300,180 L920,305" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#rj-a)"/>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">A many-to-many relationship is modeled with a <b>junction table</b> holding <b>foreign keys</b> — no data is copied between tables, just referenced by ID.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">join.sql</div><div class="spacer"></div><div class="seg right">05 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · SECTION DIVIDER: ACID ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">acid.sql</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture09</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle"><span class="hl">ACID</span> Properties</div>
+            <div class="by" style="margin-top:18px;">what transactions guarantee you<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 07 · DB DESIGN PRINCIPLES - ACID ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">acid.md</div>
+        <div class="breadcrumb">lecture09 / <b>db-design-principles-acid</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the traditional RDBMS deal</div>
+        <h2 class="title reveal">DB Design Principles <span class="hl">— ACID</span></h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>💪 Strong Consistency</h3><p style="font-size:17px;color:var(--fg-dim);">Every read sees the latest committed write.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>🔒 Pessimistic</h3><p style="font-size:17px;color:var(--fg-dim);">Locks early — assume conflicts will happen.</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>📈 Vertical Scaling</h3><p style="font-size:17px;color:var(--fg-dim);">Scale up one powerful machine.</p></div>
+            <div class="col-card accent-purple" style="padding:26px 24px;"><h3>🏛️ Traditional RDBMS</h3><p style="font-size:17px;color:var(--fg-dim);">PostgreSQL, MySQL, Oracle…</p></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">ACID = <b>A</b>tomicity, <b>C</b>onsistency, <b>I</b>solation, <b>D</b>urability — four guarantees a transaction gives you. Let's take each one apart.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">acid.md</div><div class="spacer"></div><div class="seg right">07 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · ACID: ATOMICITY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">atomicity.sql</div>
+        <div class="breadcrumb">lecture09 / <b>acid-atomicity</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the "A" in ACID</div>
+        <h2 class="title reveal">ACID: <span class="hl">Atomicity</span></h2>
+        <p class="lead-in reveal">"All or nothing" — a transaction completes fully, or not at all.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">bank-transfer.sql</div>
+            <pre><span class="tok-kw">await</span> client<span class="tok-pun">.</span><span class="tok-fn">query</span><span class="tok-pun">(</span><span class="tok-str">'BEGIN'</span><span class="tok-pun">);</span>
+
+<span class="tok-kw">await</span> client<span class="tok-pun">.</span><span class="tok-fn">query</span><span class="tok-pun">(</span><span class="tok-str">'UPDATE accounts SET balance = balance - 100 WHERE id = 1'</span><span class="tok-pun">);</span>
+<span class="tok-kw">await</span> client<span class="tok-pun">.</span><span class="tok-fn">query</span><span class="tok-pun">(</span><span class="tok-str">'UPDATE accounts SET balance = balance + 100 WHERE id = 2'</span><span class="tok-pun">);</span>
+<span class="tok-com">// ⚡ power failure here? Neither UPDATE is saved yet.</span>
+
+<span class="tok-kw">await</span> client<span class="tok-pun">.</span><span class="tok-fn">query</span><span class="tok-pun">(</span><span class="tok-str">'COMMIT'</span><span class="tok-pun">);</span> <span class="tok-com">// only now are BOTH changes saved</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">If the power fails before <code class="icode">COMMIT</code>, the whole transaction rolls back — money is never deducted from one account without appearing in the other.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">atomicity.sql</div><div class="spacer"></div><div class="seg right">08 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · ACID: CONSISTENCY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">consistency.sql</div>
+        <div class="breadcrumb">lecture09 / <b>acid-consistency</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the "C" in ACID</div>
+        <h2 class="title reveal">ACID: <span class="hl">Consistency</span></h2>
+        <p class="lead-in reveal">Data always moves from one <em style="color:var(--orange);">valid</em> state to another valid state.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">constraints.sql</div>
+            <pre><span class="tok-com">-- Constraints enforce consistency</span>
+<span class="tok-kw">CREATE TABLE</span> accounts <span class="tok-pun">(</span>
+  id <span class="tok-cls">SERIAL PRIMARY KEY</span><span class="tok-pun">,</span>
+  balance <span class="tok-cls">DECIMAL</span><span class="tok-pun">(</span><span class="tok-num">10</span><span class="tok-pun">,</span><span class="tok-num">2</span><span class="tok-pun">)</span> <span class="tok-kw">CHECK</span> <span class="tok-pun">(</span>balance <span class="tok-op">&gt;=</span> <span class="tok-num">0</span><span class="tok-pun">),</span> <span class="tok-com">-- no negative balances!</span>
+  user_id <span class="tok-cls">INTEGER</span> <span class="tok-kw">REFERENCES</span> users<span class="tok-pun">(</span>id<span class="tok-pun">)</span>          <span class="tok-com">-- must reference a valid user</span>
+<span class="tok-pun">);</span>
+
+<span class="tok-com">-- This will FAIL (constraint violation)</span>
+<span class="tok-kw">UPDATE</span> accounts <span class="tok-kw">SET</span> balance <span class="tok-op">=</span> <span class="tok-op">-</span><span class="tok-num">50</span> <span class="tok-kw">WHERE</span> id <span class="tok-op">=</span> <span class="tok-num">1</span><span class="tok-pun">;</span>
+<span class="tok-out">-- ERROR: violates check constraint "accounts_balance_check"</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">consistency.sql</div><div class="spacer"></div><div class="seg right">09 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · ACID: ISOLATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">isolation.sql</div>
+        <div class="breadcrumb">lecture09 / <b>acid-isolation</b></div>
+    </div>
+    <div class="canvas" style="padding:48px 60px 24px;">
+        <div class="kicker reveal">the "I" in ACID</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:6px;">ACID: <span class="hl">Isolation</span></h2>
+        <p class="lead-in reveal" style="font-size:22px;margin-bottom:10px;">Concurrent transactions don't interfere with each other.</p>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 340" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <line x1="60" y1="30" x2="1560" y2="30" stroke="#565f89" stroke-width="2"/>
+          <text x="1560" y="20" text-anchor="end" font-family="JetBrains Mono" font-size="14" fill="#565f89">time →</text>
+
+          <!-- Transaction A track -->
+          <text x="60" y="80" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">Transaction A</text>
+          <line x1="200" y1="100" x2="900" y2="100" stroke="#7aa2f7" stroke-width="2"/>
+          <rect x="200" y="80" width="230" height="40" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="315" y="105" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">READ balance=100</text>
+          <rect x="640" y="80" width="260" height="40" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="770" y="105" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">WRITE balance=50</text>
+          <rect x="950" y="80" width="140" height="40" rx="6" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="1020" y="105" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#9ece6a">COMMIT</text>
+
+          <!-- Transaction B track -->
+          <text x="60" y="190" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">Transaction B</text>
+          <line x1="450" y1="210" x2="1300" y2="210" stroke="#ff9e64" stroke-width="2"/>
+          <rect x="450" y="190" width="230" height="40" rx="6" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="565" y="215" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">READ balance=100</text>
+          <rect x="900" y="190" width="260" height="40" rx="6" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1030" y="215" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">WRITE balance=80</text>
+          <rect x="1210" y="190" width="140" height="40" rx="6" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="1280" y="215" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#9ece6a">COMMIT</text>
+
+          <!-- overlap indicator -->
+          <path d="M450,140 L450,180" stroke="#f7768e" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+          <path d="M900,140 L900,180" stroke="#f7768e" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+          <text x="675" y="160" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#f7768e">both read the same stale value</text>
+
+          <text x="60" y="300" font-family="JetBrains Mono" font-size="15" fill="#f7768e">❌ Without isolation: final balance = 80 — A's write is lost</text>
+          <text x="60" y="328" font-family="JetBrains Mono" font-size="15" fill="#9ece6a">✅ With isolation: final balance = 50 or 30 — writes are serialized</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:2px;">Isolation levels: Read Uncommitted → Read Committed → Repeatable Read → <b>Serializable</b>. Trade-off: stronger isolation = lower concurrency.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">isolation.sql</div><div class="spacer"></div><div class="seg right">10 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · ACID: DURABILITY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">durability.sql</div>
+        <div class="breadcrumb">lecture09 / <b>acid-durability</b></div>
+    </div>
+    <div class="canvas" style="padding:48px 60px 24px;">
+        <div class="kicker reveal">the "D" in ACID</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:12px;">ACID: <span class="hl">Durability</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:20px;">Committed transactions survive system failures.</p>
+        <div class="reveal" style="flex:1;min-height:0;display:flex;align-items:center;">
+        <svg viewBox="0 0 1600 240" width="100%" height="240" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="dur-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <rect x="20" y="70" width="280" height="100" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="160" y="127" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#9ece6a">COMMIT</text>
+
+          <path d="M300,120 L410,120" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#dur-a)"/>
+
+          <rect x="420" y="50" width="380" height="140" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="610" y="105" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#bb9af7">Write-Ahead Log</text>
+          <text x="610" y="135" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="#9aa5ce">(WAL)</text>
+
+          <path d="M800,120 L910,120" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#dur-a)"/>
+
+          <rect x="920" y="70" width="280" height="100" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1060" y="127" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#ff9e64">fsync()</text>
+
+          <path d="M1200,120 L1310,120" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#dur-a)"/>
+          <text x="1255" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">forces write</text>
+
+          <rect x="1320" y="70" width="260" height="100" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="1450" y="127" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#7aa2f7">Disk</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:8px;">After <code class="icode">COMMIT</code> returns: data is <b>on disk</b>, not just in memory. It survives power loss, crashes, and restarts — and can be recovered from the transaction log.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">durability.sql</div><div class="spacer"></div><div class="seg right">11 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · SECTION DIVIDER: SQL & POSTGRESQL ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">db.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture09</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">SQL &amp; <span class="hl">PostgreSQL</span></div>
+            <div class="by" style="margin-top:18px;">setup · syntax · connecting from Node<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 13 · DATABASE ACCESS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">access.md</div>
+        <div class="breadcrumb">lecture09 / <b>database-access</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">how humans and code reach a database</div>
+        <h2 class="title reveal">Database <span class="hl">Access</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🖱️ GUI</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">pgAdmin</li>
+                    <li style="font-size:22px;">PostgreSQL for VS Code</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>💻 API</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">ODBC / JDBC</li>
+                    <li style="font-size:22px;"><strong>ORM</strong> — Hibernate, SQLAlchemy, Sequelize…</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">An ORM lets you write <code class="icode">User.findAll()</code> instead of raw SQL — we'll use <b>Sequelize</b> in the Node.js examples ahead.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">access.md</div><div class="spacer"></div><div class="seg right">13 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · SQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">query.sql</div>
+        <div class="breadcrumb">lecture09 / <b>sql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">structured query language</div>
+        <h2 class="title reveal"><span class="hl">SQL</span></h2>
+        <div class="split eq reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">read</div>
+                <pre><span class="tok-kw">SELECT</span> column1<span class="tok-pun">,</span> column2<span class="tok-pun">,</span> ...
+<span class="tok-kw">FROM</span> table_name
+<span class="tok-kw">WHERE</span> condition<span class="tok-pun">;</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">define</div>
+                <pre><span class="tok-kw">CREATE TABLE</span> table_name <span class="tok-pun">(</span>
+  column1 datatype<span class="tok-pun">,</span>
+  column2 datatype<span class="tok-pun">,</span>
+  ...
+<span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">w3schools.com/sql · sqltutorial.org — good references for the full syntax as you need it.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">query.sql</div><div class="spacer"></div><div class="seg right">14 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · POSTGRESQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture09 / <b>postgresql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">getting it running locally</div>
+        <h2 class="title reveal"><span class="hl">PostgreSQL</span></h2>
+        <ul class="list reveal">
+            <li>Download from <span style="color:var(--cyan);">postgresql.org</span> — or, on macOS: <code class="icode">brew install postgresql@15</code></li>
+            <li>Or run it in <strong>Docker</strong> — official <code class="icode">postgres</code> image on Docker Hub</li>
+        </ul>
+        <div class="codeblock reveal" style="margin-top:8px;">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">brew</span> install postgresql@15
+<span class="tok-fn">psql</span> -U postgres</pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">15 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · POSTGRESQL CONNECTION WITH NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sql/db.js</div>
+        <div class="breadcrumb">lecture09 / <b>postgresql-nodejs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two ways to talk to Postgres from Node</div>
+        <h2 class="title reveal">PostgreSQL Connection <span class="hl">with Node.js</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong style="color:var(--cyan);">pg</strong> (node-postgres) — raw SQL, thin client</li>
+                    <li><strong style="color:var(--orange);">sequelize</strong> — full ORM: models, migrations, associations</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">sql/db.js — sequelize</div>
+                <pre><span class="tok-kw">const</span> <span class="tok-pun">{</span> <span class="tok-cls">Sequelize</span> <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'sequelize'</span><span class="tok-pun">);</span>
+
+<span class="tok-kw">const</span> sequelize <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Sequelize</span><span class="tok-pun">(</span>
+  process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">POSTGRES_DATABASE</span><span class="tok-pun">,</span>
+  process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">POSTGRES_USERNAME</span><span class="tok-pun">,</span>
+  process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">POSTGRES_PASSWORD</span><span class="tok-pun">,</span>
+  <span class="tok-pun">{</span> host<span class="tok-pun">:</span> process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">POSTGRES_HOST</span><span class="tok-pun">,</span> dialect<span class="tok-pun">:</span> <span class="tok-str">'postgres'</span> <span class="tok-pun">}</span>
+<span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sql/db.js</div><div class="spacer"></div><div class="seg right">16 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · SECTION DIVIDER: NOSQL & MONGODB ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">schema.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture09</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">NoSQL &amp; <span class="hl">MongoDB</span></div>
+            <div class="by" style="margin-top:18px;">documents · collections · mongoose<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 18 · NOSQL DATABASE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">repos.json</div>
+        <div class="breadcrumb">lecture09 / <b>nosql-database</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a different shape for data</div>
+        <h2 class="title reveal"><span class="hl">NoSQL</span> Database</h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong>Document</strong> — one record, stored as JSON</li>
+                    <li><strong>Collection</strong> — a group of documents (like a table, but schema-flexible)</li>
+                    <li><strong>Document databases</strong>: MongoDB, CouchDB</li>
+                    <li>No fixed columns — each document can have different fields</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">GET api.github.com/users/mojombo/repos</div>
+                <pre><span class="tok-pun">[</span>
+  <span class="tok-pun">{</span>
+    <span class="tok-cls">"name"</span><span class="tok-pun">:</span> <span class="tok-str">"30daysoflaptops.github.io"</span><span class="tok-pun">,</span>
+    <span class="tok-cls">"language"</span><span class="tok-pun">:</span> <span class="tok-str">"CSS"</span><span class="tok-pun">,</span>
+    <span class="tok-cls">"fork"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span>
+  <span class="tok-pun">},</span>
+  <span class="tok-com">// ...each document, its own shape</span>
+<span class="tok-pun">]</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">repos.json</div><div class="spacer"></div><div class="seg right">18 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · EVOLUTION OF MONGODB ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">changelog.md</div>
+        <div class="breadcrumb">lecture09 / <b>evolution-of-mongodb</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">not just "read-only NoSQL" anymore</div>
+        <h2 class="title reveal">Evolution of <span class="hl">MongoDB</span></h2>
+        <ul class="list reveal">
+            <li>Initial NoSQL databases mostly supported read-only-style operations</li>
+            <li>Not originally great at <strong>high-volume transactional</strong> workloads</li>
+            <li><strong style="color:var(--green);">MongoDB 4.0</strong> added multi-document <strong>ACID transactions</strong></li>
+            <li>Also evolved: foreign-key-style references (alongside embedding), <strong>schema validation</strong>, aggregation pipelines, indexes</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">The "NoSQL means no rules" stereotype is outdated — modern MongoDB gives you most relational guarantees, if you opt in.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">changelog.md</div><div class="spacer"></div><div class="seg right">19 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · COMPARISON: MONGODB VS POSTGRESQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture09 / <b>mongodb-vs-postgresql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">same concepts, different names</div>
+        <h2 class="title reveal">MongoDB <span class="hl">vs.</span> PostgreSQL</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>MongoDB</th><th>PostgreSQL</th></tr></thead>
+            <tbody>
+                <tr><td>Collection</td><td>Table</td></tr>
+                <tr><td>Document</td><td>Row</td></tr>
+                <tr><td>Field</td><td>Column</td></tr>
+                <tr><td>Index</td><td>Index</td></tr>
+                <tr><td>Embedded Document</td><td>Join</td></tr>
+                <tr><td>Reference</td><td>Foreign Key</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">20 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · MONGODB SETUP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">setup.md</div>
+        <div class="breadcrumb">lecture09 / <b>mongodb-setup</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">local, docker, or cloud</div>
+        <h2 class="title reveal"><span class="hl">MongoDB</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>💻 Local</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">MongoDB Community Server</p>
+            </div>
+            <div class="col-card accent-cyan">
+                <h3>🐳 Docker</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Official <code class="icode">mongo</code> image</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>☁️ Cloud</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">MongoDB Atlas</p>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">Access: GUI via <b>MongoDB Compass</b>, or from Node via the <b>mongoose</b> API.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">setup.md</div><div class="spacer"></div><div class="seg right">21 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · SHARED ACCESS TO MONGODB ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">.env</div>
+        <div class="breadcrumb">lecture09 / <b>shared-mongodb-access</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a class-wide sandbox</div>
+        <h2 class="title reveal">Shared Access <span class="hl">to MongoDB</span></h2>
+        <p class="lead-in reveal">You can run your own MongoDB (local or cloud) — or use the shared class server. Credentials are shared in the course Slack channel.</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">.env</div>
+            <pre>MONGODB_URI<span class="tok-op">=</span>mongodb+srv://<span class="tok-pun">&lt;</span>username<span class="tok-pun">&gt;</span>:<span class="tok-pun">&lt;</span>password<span class="tok-pun">&gt;</span>@fullstack-training.gw3nkbl.mongodb.net/<span class="tok-pun">&lt;</span>database<span class="tok-pun">&gt;</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">Never commit real credentials — keep the connection string in <code class="icode">.env</code>, and make sure <code class="icode">.env</code> is in <code class="icode">.gitignore</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">.env</div><div class="spacer"></div><div class="seg right">22 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · DEFINING A SCHEMA AND MODEL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mongo/schema.js</div>
+        <div class="breadcrumb">lecture09 / <b>defining-schema-model</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">shape, even without a fixed table</div>
+        <h2 class="title reveal">Defining a <span class="hl">Schema &amp; Model</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">mongo/schema.js</div>
+            <pre><span class="tok-kw">const</span> mongoose <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'mongoose'</span><span class="tok-pun">);</span>
+<span class="tok-kw">const</span> <span class="tok-cls">Schema</span> <span class="tok-op">=</span> mongoose<span class="tok-pun">.</span><span class="tok-cls">Schema</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">const</span> userSchema <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Schema</span><span class="tok-pun">({</span>
+  firstName<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-pun">,</span>
+  email<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-pun">,</span>
+  createdAt<span class="tok-pun">:</span> <span class="tok-pun">{</span> <span class="tok-kw">type</span><span class="tok-pun">:</span> <span class="tok-cls">Date</span><span class="tok-pun">,</span> default<span class="tok-pun">:</span> <span class="tok-cls">Date</span><span class="tok-pun">.</span>now <span class="tok-pun">}</span>
+<span class="tok-pun">});</span>
+
+<span class="tok-kw">const</span> <span class="tok-cls">User</span> <span class="tok-op">=</span> mongoose<span class="tok-pun">.</span><span class="tok-fn">model</span><span class="tok-pun">(</span><span class="tok-str">'User'</span><span class="tok-pun">,</span> userSchema<span class="tok-pun">);</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Mongoose still enforces a <b>shape</b> on top of MongoDB's schema-less storage — you opt into structure where it helps.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mongo/schema.js</div><div class="spacer"></div><div class="seg right">23 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · MONGODB CRUD ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">crud.js</div>
+        <div class="breadcrumb">lecture09 / <b>mongodb-crud</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the four operations, mongoose style</div>
+        <h2 class="title reveal">MongoDB <span class="hl">CRUD</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>Read &amp; Create</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;"><code class="icode">find()</code></li>
+                    <li style="font-size:22px;"><code class="icode">findOne()</code></li>
+                    <li style="font-size:22px;"><code class="icode">insertOne()</code></li>
+                    <li style="font-size:22px;"><code class="icode">insertMany()</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>Update &amp; Delete</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;"><code class="icode">updateOne()</code></li>
+                    <li style="font-size:22px;"><code class="icode">updateMany()</code></li>
+                    <li style="font-size:22px;"><code class="icode">deleteOne()</code></li>
+                    <li style="font-size:22px;"><code class="icode">deleteMany()</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">crud.js</div><div class="spacer"></div><div class="seg right">24 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · MONGODB + NODE.JS: CONNECT & SERVE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">http-server-mongodb/index.js</div>
+        <div class="breadcrumb">lecture09 / <b>mongodb-nodejs-connect-serve</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">from connection string to HTTP route</div>
+        <h2 class="title reveal">MongoDB + Node.js: <span class="hl">Connect &amp; Serve</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Connect once with <code class="icode">mongoose.connect()</code></li>
+                    <li>Map each HTTP request to a CRUD call: get all, get one, create, update, delete</li>
+                    <li>Same pattern as Lecture 7's raw <code class="icode">http</code> server — now backed by a real database</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">http-server-mongodb/index.js</div>
+                <pre>mongoose<span class="tok-pun">.</span><span class="tok-fn">connect</span><span class="tok-pun">(</span>process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">MONGODB_URI</span><span class="tok-pun">);</span>
+
+<span class="tok-kw">if</span> <span class="tok-pun">(</span>req<span class="tok-pun">.</span>method <span class="tok-op">===</span> <span class="tok-str">'GET'</span> <span class="tok-op">&amp;&amp;</span>
+    req<span class="tok-pun">.</span>url <span class="tok-op">===</span> <span class="tok-str">'/api/getAllUsers'</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> users <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-cls">User</span><span class="tok-pun">.</span><span class="tok-fn">find</span><span class="tok-pun">();</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">(</span><span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">stringify</span><span class="tok-pun">(</span>users<span class="tok-pun">));</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">http-server-mongodb/index.js</div><div class="spacer"></div><div class="seg right">25 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · HOW TO TEST THE SERVER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tools.md</div>
+        <div class="breadcrumb">lecture09 / <b>how-to-test-the-server</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">poke it before the frontend does</div>
+        <h2 class="title reveal">How to Test <span class="hl">the Server</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>⌨️ Terminal Tools</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">curl</li>
+                    <li style="font-size:22px;">httpie</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🖱️ GUI Tools</h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Postman</li>
+                    <li style="font-size:22px;">Thunder Client (VS Code)</li>
+                    <li style="font-size:22px;">Talend API Tester</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tools.md</div><div class="spacer"></div><div class="seg right">26 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · SECTION DIVIDER: SCHEMA DESIGN ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">design.md</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture09</span> <span class="cmd">$ // Part 4</span></div>
+            <div class="sectitle">Schema Design <span class="hl">Decisions</span></div>
+            <div class="by" style="margin-top:18px;">embed vs. reference — the decision that matters<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 28 · EMBED VS. REFERENCE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">schema-design.js</div>
+        <div class="breadcrumb">lecture09 / <b>embed-vs-reference</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the single most important MongoDB decision</div>
+        <h2 class="title reveal">Embed <span class="hl">vs.</span> Reference</h2>
+        <div class="split eq reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">embed (denormalize)</div>
+                <pre><span class="tok-pun">{</span>
+  name<span class="tok-pun">:</span> <span class="tok-str">"Alice"</span><span class="tok-pun">,</span>
+  addresses<span class="tok-pun">:</span> <span class="tok-pun">[</span>
+    <span class="tok-pun">{</span> street<span class="tok-pun">:</span> <span class="tok-str">"123 Main"</span><span class="tok-pun">,</span> city<span class="tok-pun">:</span> <span class="tok-str">"Toronto"</span> <span class="tok-pun">},</span>
+    <span class="tok-pun">{</span> street<span class="tok-pun">:</span> <span class="tok-str">"456 Oak"</span><span class="tok-pun">,</span> city<span class="tok-pun">:</span> <span class="tok-str">"Vancouver"</span> <span class="tok-pun">}</span>
+  <span class="tok-pun">]</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">reference (normalize)</div>
+                <pre><span class="tok-pun">{</span> name<span class="tok-pun">:</span> <span class="tok-str">"Alice"</span><span class="tok-pun">,</span> companyId<span class="tok-pun">:</span> <span class="tok-cls">ObjectId</span><span class="tok-pun">(</span><span class="tok-str">"..."</span><span class="tok-pun">)</span> <span class="tok-pun">}</span>
+
+<span class="tok-com">// separate company document</span>
+<span class="tok-pun">{</span> _id<span class="tok-pun">:</span> <span class="tok-cls">ObjectId</span><span class="tok-pun">(</span><span class="tok-str">"..."</span><span class="tok-pun">),</span> name<span class="tok-pun">:</span> <span class="tok-str">"Google"</span> <span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+        <div class="cols reveal" style="margin-top:16px;">
+            <ul class="list" style="gap:6px;">
+                <li style="font-size:20px;">Data read together → <strong style="color:var(--blue);">embed</strong></li>
+                <li style="font-size:20px;">One-to-few relationship → <strong style="color:var(--blue);">embed</strong></li>
+            </ul>
+            <ul class="list" style="gap:6px;">
+                <li style="font-size:20px;">Data changes independently → <strong style="color:var(--orange);">reference</strong></li>
+                <li style="font-size:20px;">One-to-many / many-to-many → <strong style="color:var(--orange);">reference</strong></li>
+            </ul>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">schema-design.js</div><div class="spacer"></div><div class="seg right">28 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 29 · SCHEMA DESIGN DECISION GUIDE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">decision-guide.md</div>
+        <div class="breadcrumb">lecture09 / <b>schema-design-decision-guide</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a checklist, not a formula</div>
+        <h2 class="title reveal">Schema Design <span class="hl">Decision Guide</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Question</th><th>If Yes</th><th>If No</th></tr></thead>
+            <tbody>
+                <tr><td>Is the data always accessed together?</td><td style="color:var(--blue);">Embed</td><td style="color:var(--orange);">Reference</td></tr>
+                <tr><td>Is it a one-to-few relationship?</td><td style="color:var(--blue);">Embed</td><td style="color:var(--orange);">Reference</td></tr>
+                <tr><td>Does the child data change frequently?</td><td style="color:var(--orange);">Reference</td><td style="color:var(--blue);">Embed</td></tr>
+                <tr><td>Can the embedded array grow unbounded?</td><td style="color:var(--orange);">Reference</td><td style="color:var(--blue);">Embed</td></tr>
+                <tr><td>Do you need to query the child independently?</td><td style="color:var(--orange);">Reference</td><td style="color:var(--blue);">Embed</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:16px;">There is no perfect answer — schema design is always a trade-off between <b>read performance</b> and <b>write complexity</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">decision-guide.md</div><div class="spacer"></div><div class="seg right">29 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 30 · MONGOOSE SCHEMA VALIDATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">validation.js</div>
+        <div class="breadcrumb">lecture09 / <b>mongoose-schema-validation</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">enforce structure without a rigid table</div>
+        <h2 class="title reveal">Mongoose <span class="hl">Schema Validation</span></h2>
+        <div class="split eq reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">validation.js — required, format</div>
+                <pre><span class="tok-kw">const</span> userSchema <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">Schema</span><span class="tok-pun">({</span>
+  name<span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">type</span><span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-pun">,</span>
+    required<span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-kw">true</span><span class="tok-pun">,</span> <span class="tok-str">'Name is required'</span><span class="tok-pun">],</span>
+    trim<span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+    minlength<span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-num">2</span><span class="tok-pun">,</span> <span class="tok-str">'min 2 characters'</span><span class="tok-pun">],</span>
+  <span class="tok-pun">},</span>
+  email<span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">type</span><span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-pun">,</span>
+    required<span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> unique<span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+    match<span class="tok-pun">:</span> <span class="tok-pun">[/</span>^\S+@\S+\.\S+$<span class="tok-pun">/,</span> <span class="tok-str">'invalid email'</span><span class="tok-pun">],</span>
+  <span class="tok-pun">},</span></pre>
+            </div>
+            <div class="codeblock xs">
+                <div class="cb-bar">validation.js — range, enum</div>
+                <pre>  age<span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">type</span><span class="tok-pun">:</span> <span class="tok-cls">Number</span><span class="tok-pun">,</span>
+    min<span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-num">0</span><span class="tok-pun">,</span> <span class="tok-str">'cannot be negative'</span><span class="tok-pun">],</span>
+    max<span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-num">150</span><span class="tok-pun">,</span> <span class="tok-str">'seems unrealistic'</span><span class="tok-pun">],</span>
+  <span class="tok-pun">},</span>
+  role<span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">type</span><span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-pun">,</span>
+    <span class="tok-kw">enum</span><span class="tok-pun">:</span> <span class="tok-pun">[</span><span class="tok-str">'user'</span><span class="tok-pun">,</span> <span class="tok-str">'admin'</span><span class="tok-pun">,</span> <span class="tok-str">'moderator'</span><span class="tok-pun">],</span>
+    default<span class="tok-pun">:</span> <span class="tok-str">'user'</span><span class="tok-pun">,</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Validate at the <b>schema level</b> — don't rely on frontend validation alone. A malicious or buggy client can always send a raw request.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">validation.js</div><div class="spacer"></div><div class="seg right">30 / 31</div></div>
+</div>
+</section>
+
+<!-- ============ 31 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture09</div>
+        <div class="breadcrumb">lecture09 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>📊 Relational vs. NoSQL</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Different data models and trade-offs</li>
+                    <li style="font-size:20px;">Tables + joins vs. documents + collections</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🔒 ACID</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Atomicity, Consistency, Isolation, Durability</li>
+                    <li style="font-size:20px;">SQL basics &amp; PostgreSQL setup</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>📄 MongoDB</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Collections, documents, CRUD</li>
+                    <li style="font-size:20px;">mongoose schemas &amp; validation</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🏗️ Schema Design</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Embed vs. reference — the key decision</li>
+                    <li style="font-size:20px;">Trade-off: read performance vs. write complexity</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> RESTful API Design
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture09</div><div class="spacer"></div><div class="seg right">31 / 31</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture9-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture9.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

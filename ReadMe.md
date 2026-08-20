@@ -67,12 +67,6 @@ A few things to keep in mind as you move through it:
 
 If you find any typo or mistake in the slides, please let me know. I will fix it as soon as possible.
 
-# Demo Project - Mini Tweet
-
-I will go through a demo project, Mini Tweet, from the scratch, to give you a clearer picture and better idea of how to build a web application, both backend and frontend. If you are new to web development, this demo project will be a good start for you and you can follow my suggestions to finish your final projects. Otherwise, you can follow your own way to build your final projects.
-
-[Demo](https://demo.chuwaweb.com/)
-
 # Final Project
 
 There are two final projects. You have to finish them all to pass the training.
@@ -90,4 +84,3 @@ You will get details in the class
 # Questions & Contributions
 
 Have a question, spotted an issue, or found a mistake? Feel free to open a GitHub issue. If you'd like to contribute a fix or improvement, open a PR against `main`.
-
