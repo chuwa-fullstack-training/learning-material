@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 11 — Authentication &amp; Authorization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–10) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ jwt.verify(token, secret)</span></div>
+            <div class="term-out">› Loading: cookies · sessions · JWT · RBAC</div>
+            <div class="section-num">Lecture 11</div>
+            <h1>Auth<span class="hl">entication &amp; Authorization</span></h1>
+            <div class="by">// Who Are You, and What Can You Do?<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note warn reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🔴 <b>Security-related — must deeply understand.</b> JWT signing flow, token verification middleware, role-based access control — these core security concepts must be implemented by yourself. You may use AI for security review after completing your implementation.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · AUTHENTICATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">routes.md</div>
+        <div class="breadcrumb">lecture11 / <b>authentication</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 24px;">
+        <div class="kicker reveal">who are you?</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:8px;"><span class="hl">Authentication</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 500" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="a1-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#9aa5ce"/></marker>
+          </defs>
+          <text x="800" y="38" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#c0caf5">🧑 User</text>
+          <path d="M800,50 L800,88" stroke="#9aa5ce" stroke-width="2.5" fill="none" marker-end="url(#a1-a)"/>
+
+          <!-- open route -->
+          <rect x="140" y="100" width="340" height="90" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="310" y="153" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7aa2f7">View all posts</text>
+          <rect x="140" y="60" width="190" height="34" rx="17" fill="rgba(122,162,247,0.15)" stroke="#7aa2f7"/>
+          <text x="235" y="83" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#7aa2f7">Open to anyone</text>
+
+          <!-- login-required boundary -->
+          <rect x="610" y="55" width="770" height="145" rx="10" fill="none" stroke="#565f89" stroke-width="2" stroke-dasharray="8 6"/>
+          <rect x="1090" y="55" width="290" height="34" rx="17" fill="rgba(247,118,142,0.15)" stroke="#f7768e" transform="translate(0,-34)"/>
+          <text x="1235" y="38" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#f7768e">Only for logged-in users</text>
+
+          <rect x="640" y="100" width="330" height="90" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="805" y="153" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#ff9e64">Create posts</text>
+
+          <rect x="1010" y="100" width="330" height="90" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1175" y="153" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#ff9e64">Manage profile</text>
+
+          <!-- collector lines down to Server -->
+          <path d="M310,190 L310,260 L800,260" stroke="#565f89" stroke-width="2" fill="none"/>
+          <path d="M805,190 L805,260" stroke="#565f89" stroke-width="2" fill="none"/>
+          <path d="M1175,190 L1175,260 L800,260" stroke="#565f89" stroke-width="2" fill="none"/>
+          <path d="M800,260 L800,300" stroke="#9aa5ce" stroke-width="2.5" fill="none" marker-end="url(#a1-a)"/>
+
+          <rect x="660" y="310" width="280" height="90" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="800" y="363" text-anchor="middle" font-family="JetBrains Mono" font-size="21" font-weight="700" fill="#bb9af7">Server</text>
+
+          <path d="M800,400 L800,432" stroke="#9aa5ce" stroke-width="2.5" fill="none" marker-end="url(#a1-a)"/>
+          <rect x="680" y="440" width="240" height="60" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="800" y="477" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#9ece6a">Database</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:2px;">How do we verify a user's identity, and keep that identity attached across requests? <b>We need a way to attach an identity to each request.</b></div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">routes.md</div><div class="spacer"></div><div class="seg right">02 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · TWO COMMON STRATEGIES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">strategies.md</div>
+        <div class="breadcrumb">lecture11 / <b>two-common-strategies</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two ways to attach identity</div>
+        <h2 class="title reveal">Two Common <span class="hl">Strategies</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>A) Cookie + Session <span style="font-size:15px;color:var(--fg-faint);font-weight:400;">(stateful)</span></h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Browser stores a <strong>session id</strong> in a cookie</li>
+                    <li style="font-size:22px;">Server stores <strong>session data</strong> (user id, roles, etc.)</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>B) Token (JWT) <span style="font-size:15px;color:var(--fg-faint);font-weight:400;">(stateless-ish)</span></h3>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Client stores a <strong>JWT</strong></li>
+                    <li style="font-size:22px;">Server verifies the <strong>signature</strong> and reads claims</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">Same problem, two different places to keep the "who is this" data — on the <b>server</b>, or inside the <b>token itself</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">strategies.md</div><div class="spacer"></div><div class="seg right">03 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · SECTION DIVIDER: COOKIES & SESSIONS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">session-cookie.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture11</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">Cookies &amp; <span class="hl">Sessions</span></div>
+            <div class="by" style="margin-top:18px;">stateful auth, server holds the truth<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 05 · COOKIES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">cookies.md</div>
+        <div class="breadcrumb">lecture11 / <b>cookies</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">small data, sent automatically</div>
+        <h2 class="title reveal"><span class="hl">Cookies</span></h2>
+        <ul class="list reveal">
+            <li>Small key/value data stored in the <strong>browser</strong></li>
+            <li>Sent by the browser to the server on matching requests</li>
+            <li>Created via HTTP response header: <code class="icode">Set-Cookie: ...</code></li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;"><b>Common attributes:</b> <code class="icode">Domain</code>, <code class="icode">Path</code>, <code class="icode">Expires</code> / <code class="icode">Max-Age</code></div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">cookies.md</div><div class="spacer"></div><div class="seg right">05 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · COOKIE SECURITY FLAGS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">cookie-flags.md</div>
+        <div class="breadcrumb">lecture11 / <b>cookie-security-flags</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three flags that matter</div>
+        <h2 class="title reveal">Cookie <span class="hl">Security Flags</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-green">
+                <h3><code>HttpOnly</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);">✅ JavaScript cannot read it — mitigates token theft via XSS</p>
+            </div>
+            <div class="col-card accent-blue">
+                <h3><code>Secure</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);">✅ only sent over HTTPS</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3><code>SameSite</code></h3>
+                <p style="font-size:19px;color:var(--fg-dim);">✅ <code>Strict | Lax | None</code> reduces CSRF<br>⚠️ <code>None</code> requires <code>Secure</code></p>
+            </div>
+        </div>
+        <div class="note ok reveal" style="margin-top:24px;"><b>Rule of thumb</b> for auth cookies: <code class="icode">HttpOnly; Secure; SameSite=Lax</code> (or <code class="icode">Strict</code> if possible).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">cookie-flags.md</div><div class="spacer"></div><div class="seg right">06 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · SESSIONS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sessions.md</div>
+        <div class="breadcrumb">lecture11 / <b>sessions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the id is just a pointer</div>
+        <h2 class="title reveal"><span class="hl">Sessions</span></h2>
+        <ul class="list reveal">
+            <li><strong>Session id</strong> lives in the cookie</li>
+            <li><strong>Session data</strong> lives on the server (memory / Redis / DB)</li>
+            <li>Server uses the session id → loads the user's context</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;"><b>Why sessions are "stateful":</b> the server must keep session data somewhere.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sessions.md</div><div class="spacer"></div><div class="seg right">07 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · SESSION LOGIN FLOW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sequence</div>
+        <div class="breadcrumb">lecture11 / <b>session-login-flow</b></div>
+    </div>
+    <div class="canvas" style="padding:8px 60px 0px;">
+        <div class="kicker reveal">three participants, six messages</div>
+        <h2 class="title reveal" style="font-size:54px;margin-bottom:6px;">Session <span class="hl">Login Flow</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 600" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="sl-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#c0caf5"/></marker>
+            <marker id="sl-dash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#73daca"/></marker>
+          </defs>
+          <!-- participants -->
+          <rect x="80" y="20" width="220" height="60" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="190" y="57" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7aa2f7">Browser</text>
+          <line x1="190" y1="80" x2="190" y2="580" stroke="#2a2e45" stroke-width="2" stroke-dasharray="6 5"/>
+
+          <rect x="690" y="20" width="220" height="60" rx="8" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="800" y="57" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">Server</text>
+          <line x1="800" y1="80" x2="800" y2="580" stroke="#2a2e45" stroke-width="2" stroke-dasharray="6 5"/>
+
+          <rect x="1330" y="20" width="240" height="60" rx="8" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1450" y="48" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#ff9e64">Session Store</text>
+          <text x="1450" y="68" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">(Redis / DB)</text>
+          <line x1="1450" y1="80" x2="1450" y2="580" stroke="#2a2e45" stroke-width="2" stroke-dasharray="6 5"/>
+
+          <!-- messages -->
+          <path d="M190,130 L795,130" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#sl-solid)"/>
+          <text x="195" y="118" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">POST /auth/login (credentials)</text>
+
+          <path d="M800,200 L1445,200" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#sl-solid)"/>
+          <text x="805" y="188" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Create session { userId, roles… }</text>
+
+          <path d="M1450,270 L805,270" stroke="#73daca" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#sl-dash)"/>
+          <text x="1445" y="258" text-anchor="end" font-family="JetBrains Mono" font-size="14" fill="#73daca">session stored</text>
+
+          <path d="M800,340 L195,340" stroke="#73daca" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#sl-dash)"/>
+          <text x="795" y="328" text-anchor="end" font-family="JetBrains Mono" font-size="14" fill="#73daca">Set-Cookie: sid=…; HttpOnly; Secure; SameSite=Lax</text>
+
+          <path d="M190,420 L795,420" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#sl-solid)"/>
+          <text x="195" y="408" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">GET /me (cookie auto-sent)</text>
+
+          <path d="M800,480 L1445,480" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#sl-solid)"/>
+          <text x="805" y="468" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">Load session by sid</text>
+
+          <path d="M800,550 L195,550" stroke="#73daca" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#sl-dash)"/>
+          <text x="795" y="538" text-anchor="end" font-family="JetBrains Mono" font-size="15" fill="#73daca">200 { user }</text>
+        </svg>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sequence</div><div class="spacer"></div><div class="seg right">08 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · SESSION LIFECYCLE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lifecycle.md</div>
+        <div class="breadcrumb">lecture11 / <b>session-lifecycle</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">from login to logout</div>
+        <h2 class="title reveal">Session <span class="hl">Lifecycle</span></h2>
+        <ul class="list reveal">
+            <li><strong>Regenerate the session id after login</strong> — prevents <em style="color:var(--orange);">session fixation</em></li>
+            <li><strong>Rotate / refresh</strong> session expiration on activity (optional)</li>
+            <li><strong>Logout = destroy session on the server</strong>, and clear the cookie (<code class="icode">Max-Age=0</code>)</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lifecycle.md</div><div class="spacer"></div><div class="seg right">09 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SCALING SESSIONS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">scaling.md</div>
+        <div class="breadcrumb">lecture11 / <b>scaling-sessions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one server is easy; many is not</div>
+        <h2 class="title reveal">Scaling <span class="hl">Sessions</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ in-memory session store</div>
+                <p style="font-size:22px;color:var(--fg-dim);">Breaks in multi-instance deployments — instance B has never heard of the session instance A created.</p>
+            </div>
+            <div>
+                <div class="compare-label good">✅ shared store</div>
+                <p style="font-size:22px;color:var(--fg-dim);">Redis is common — every instance reads/writes the same session data.</p>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;"><b>Load balancer options:</b> sticky sessions (simpler, less flexible) vs. shared session store (recommended).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">scaling.md</div><div class="spacer"></div><div class="seg right">10 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · POTENTIAL VULNERABILITIES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">vulnerabilities.md</div>
+        <div class="breadcrumb">lecture11 / <b>potential-vulnerabilities</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">know what you're defending against</div>
+        <h2 class="title reveal">Potential <span class="hl">Vulnerabilities</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-red">
+                <h3>XSS</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Attacker runs JS in your page → can steal tokens from <code class="icode">localStorage</code> / JS-readable cookies.</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>CSRF</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Attacker tricks the browser into sending cookies to your site → possible whenever auth uses cookies.</p>
+            </div>
+            <div class="col-card accent-yellow">
+                <h3>Session Fixation</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Attacker forces a known session id → fixed by regenerating the session after login.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">vulnerabilities.md</div><div class="spacer"></div><div class="seg right">11 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · CSRF ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">csrf.md</div>
+        <div class="breadcrumb">lecture11 / <b>csrf</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">why cookie auth is vulnerable</div>
+        <h2 class="title reveal"><span class="hl">CSRF</span></h2>
+        <p class="lead-in reveal">If the browser auto-sends cookies, a malicious site can trigger:</p>
+        <ul class="list reveal">
+            <li>A hidden form submit</li>
+            <li>An image request</li>
+            <li>A fetch request (CORS may block <em style="color:var(--orange);">reading</em> the response, but the request can still be <em style="color:var(--orange);">sent</em>)</li>
+        </ul>
+        <div class="note warn reveal" style="margin-top:20px;"><b>Result:</b> the request reaches your server <em style="color:var(--red);">with valid cookies</em> attached — your server can't tell it apart from a legitimate request.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">csrf.md</div><div class="spacer"></div><div class="seg right">12 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · PROS & CONS: COOKIES + SESSIONS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tradeoffs.md</div>
+        <div class="breadcrumb">lecture11 / <b>pros-cons-cookies-sessions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">weighing it up</div>
+        <h2 class="title reveal">Pros &amp; Cons: <span class="hl">Cookies + Sessions</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label good">✅ Pros</div>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Easy logout / invalidation (destroy server session)</li>
+                    <li style="font-size:22px;">Sensitive data stays on the server</li>
+                    <li style="font-size:22px;">Simple mental model for browser apps</li>
+                </ul>
+            </div>
+            <div>
+                <div class="compare-label bad">❌ Cons</div>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:22px;">Requires a session store (Redis/DB) to scale</li>
+                    <li style="font-size:22px;">CSRF concerns (cookie auto-sent)</li>
+                    <li style="font-size:22px;">Cookies sent on every request (overhead)</li>
+                    <li style="font-size:22px;">Limited for native mobile apps (no browser cookies)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tradeoffs.md</div><div class="spacer"></div><div class="seg right">13 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · CODE EXAMPLE: SESSION-COOKIE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">session-cookie.js</div>
+        <div class="breadcrumb">lecture11 / <b>code-example</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">everything from this section, in code</div>
+        <h2 class="title reveal">Code Example</h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">session-cookie.js</div>
+            <pre>app<span class="tok-pun">.</span><span class="tok-fn">use</span><span class="tok-pun">(</span><span class="tok-fn">session</span><span class="tok-pun">({</span>
+  name<span class="tok-pun">:</span> <span class="tok-str">'sid'</span><span class="tok-pun">,</span> secret<span class="tok-pun">:</span> process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">SESSION_SECRET</span><span class="tok-pun">,</span>
+  resave<span class="tok-pun">:</span> <span class="tok-kw">false</span><span class="tok-pun">,</span> saveUninitialized<span class="tok-pun">:</span> <span class="tok-kw">false</span><span class="tok-pun">,</span>
+  cookie<span class="tok-pun">:</span> <span class="tok-pun">{</span> httpOnly<span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span> secure<span class="tok-pun">:</span> process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">NODE_ENV</span> <span class="tok-op">===</span> <span class="tok-str">'production'</span><span class="tok-pun">,</span> sameSite<span class="tok-pun">:</span> <span class="tok-str">'lax'</span> <span class="tok-pun">}</span>
+<span class="tok-pun">}));</span>
+
+<span class="tok-kw">const</span> authMiddleware <span class="tok-op">=</span> <span class="tok-pun">(</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) =&gt;</span>
+  req<span class="tok-pun">.</span>session<span class="tok-pun">.</span>user <span class="tok-pun">?</span> <span class="tok-fn">next</span><span class="tok-pun">()</span> <span class="tok-pun">:</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">send</span><span class="tok-pun">(</span><span class="tok-str">'Unauthorized'</span><span class="tok-pun">);</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">post</span><span class="tok-pun">(</span><span class="tok-str">'/auth/login'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> username<span class="tok-pun">,</span> password <span class="tok-pun">}</span> <span class="tok-op">=</span> req<span class="tok-pun">.</span>body<span class="tok-pun">;</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>valid<span class="tok-pun">(</span>username<span class="tok-pun">,</span> password<span class="tok-pun">)) {</span> req<span class="tok-pun">.</span>session<span class="tok-pun">.</span>user <span class="tok-op">=</span> <span class="tok-pun">{</span> username <span class="tok-pun">};</span> res<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span><span class="tok-str">'Logged in'</span><span class="tok-pun">);</span> <span class="tok-pun">}</span>
+<span class="tok-pun">});</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">post</span><span class="tok-pun">(</span><span class="tok-str">'/auth/logout'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt;</span>
+  req<span class="tok-pun">.</span>session<span class="tok-pun">.</span><span class="tok-fn">destroy</span><span class="tok-pun">(() =&gt; {</span> res<span class="tok-pun">.</span><span class="tok-fn">clearCookie</span><span class="tok-pun">(</span><span class="tok-str">'sid'</span><span class="tok-pun">);</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">({</span> ok<span class="tok-pun">:</span> <span class="tok-kw">true</span> <span class="tok-pun">});</span> <span class="tok-pun">}));</span>
+
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/api/protected'</span><span class="tok-pun">,</span> authMiddleware<span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt;</span> res<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span><span class="tok-str">'Protected data'</span><span class="tok-pun">));</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">session-cookie.js</div><div class="spacer"></div><div class="seg right">14 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · SECTION DIVIDER: JWT ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">jwt.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture11</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">JSON Web <span class="hl">Tokens</span></div>
+            <div class="by" style="margin-top:18px;">stateless-ish auth, the client holds the truth<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 16 · JWT (WHAT IT IS) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">jwt.md</div>
+        <div class="breadcrumb">lecture11 / <b>jwt-what-it-is</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">RFC 7519</div>
+        <h2 class="title reveal"><span class="hl">JWT</span> — What It Is</h2>
+        <p class="lead-in reveal">JWT is an open standard defining a compact, self-contained way to securely transmit information between parties as JSON.</p>
+        <div class="note warn reveal" style="margin-top:12px;"><b>Key point:</b> JWT is typically <b>signed</b> (integrity) — <em style="color:var(--red);">not encrypted</em> (confidentiality). Anyone can decode and read the payload.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">jwt.md</div><div class="spacer"></div><div class="seg right">16 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · JWT LOGIN FLOW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">sequence</div>
+        <div class="breadcrumb">lecture11 / <b>jwt-login-flow</b></div>
+    </div>
+    <div class="canvas" style="padding:4px 60px 0px;">
+        <div class="kicker reveal" style="margin-bottom:8px;">two participants, no session store</div>
+        <h2 class="title reveal" style="font-size:40px;margin-bottom:2px;">JWT <span class="hl">Login Flow</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 500" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="jl-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#c0caf5"/></marker>
+            <marker id="jl-dash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#73daca"/></marker>
+          </defs>
+          <rect x="200" y="20" width="220" height="60" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="310" y="57" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#7aa2f7">Client</text>
+          <line x1="310" y1="80" x2="310" y2="480" stroke="#2a2e45" stroke-width="2" stroke-dasharray="6 5"/>
+
+          <rect x="1180" y="20" width="220" height="60" rx="8" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1290" y="57" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">Server</text>
+          <line x1="1290" y1="80" x2="1290" y2="480" stroke="#2a2e45" stroke-width="2" stroke-dasharray="6 5"/>
+
+          <!-- messages -->
+          <path d="M310,140 L1285,140" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#jl-solid)"/>
+          <text x="315" y="128" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">POST /auth/login (credentials)</text>
+
+          <path d="M1290,220 L315,220" stroke="#73daca" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#jl-dash)"/>
+          <text x="1285" y="208" text-anchor="end" font-family="JetBrains Mono" font-size="15" fill="#73daca">200 { accessToken: JWT }</text>
+
+          <path d="M310,300 L1285,300" stroke="#c0caf5" stroke-width="2" fill="none" marker-end="url(#jl-solid)"/>
+          <text x="315" y="288" font-family="JetBrains Mono" font-size="15" fill="#c0caf5">GET /me (Authorization: Bearer JWT)</text>
+
+          <!-- self message on Server -->
+          <path d="M1290,340 C1420,340 1420,400 1294,400" stroke="#ff9e64" stroke-width="2" fill="none" marker-end="url(#jl-solid)"/>
+          <text x="1330" y="335" font-family="JetBrains Mono" font-size="14" fill="#ff9e64">verify signature + exp + iss/aud</text>
+
+          <path d="M1290,450 L315,450" stroke="#73daca" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#jl-dash)"/>
+          <text x="1285" y="438" text-anchor="end" font-family="JetBrains Mono" font-size="15" fill="#73daca">200 { user }</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:2px;padding:14px 24px;font-size:20px;">No <b>Session Store</b> lifeline here — the server verifies the token <em style="color:var(--orange);">on its own</em>, using only the secret it already knows.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">sequence</div><div class="spacer"></div><div class="seg right">17 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · JWT STRUCTURE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">structure.md</div>
+        <div class="breadcrumb">lecture11 / <b>jwt-structure</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three dot-separated parts</div>
+        <h2 class="title reveal">JWT <span class="hl">Structure</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-orange">
+                <h3>Header</h3>
+                <p style="font-size:20px;color:var(--fg-dim);">Algorithm, token type</p>
+            </div>
+            <div class="col-card accent-blue">
+                <h3>Payload</h3>
+                <p style="font-size:20px;color:var(--fg-dim);">Claims — user id, expiration, roles, etc.</p>
+            </div>
+            <div class="col-card accent-green">
+                <h3>Signature</h3>
+                <p style="font-size:20px;color:var(--fg-dim);">Header + Payload + Secret (or private key)</p>
+            </div>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li><strong>Common claims:</strong> <code class="icode">sub</code> (subject/user id), <code class="icode">exp</code>, <code class="icode">iat</code>, <code class="icode">iss</code>, <code class="icode">aud</code>, plus <code class="icode">roles</code> / <code class="icode">scope</code> for authorization</li>
+        </ul>
+        <div class="note warn reveal" style="margin-top:12px;">⚠️ Put <b>no secrets</b> in the payload. Anyone can decode it.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">structure.md</div><div class="spacer"></div><div class="seg right">18 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · SIGNING AND VERIFYING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">jwt.js</div>
+        <div class="breadcrumb">lecture11 / <b>signing-and-verifying</b></div>
+    </div>
+    <div class="canvas" style="padding:0px 60px 0px;">
+        <div class="kicker reveal" style="margin-bottom:6px;">the secret never leaves the server</div>
+        <h2 class="title reveal" style="font-size:36px;margin-bottom:0px;">Signing <span class="hl">and Verifying</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 700" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="jv-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <!-- SIGNING group -->
+          <rect x="40" y="20" width="1520" height="230" rx="10" fill="none" stroke="#565f89" stroke-width="2" stroke-dasharray="8 6"/>
+          <text x="1520" y="46" text-anchor="end" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9aa5ce">SIGNING (server)</text>
+
+          <rect x="80" y="60" width="320" height="70" rx="8" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="240" y="102" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">header.payload</text>
+
+          <rect x="80" y="160" width="320" height="70" rx="8" fill="#1f2335" stroke="#f7768e" stroke-width="2"/>
+          <text x="240" y="202" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#f7768e">secret</text>
+
+          <rect x="510" y="110" width="300" height="80" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="660" y="156" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9ece6a">Signature</text>
+
+          <rect x="980" y="110" width="320" height="80" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="1140" y="156" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7aa2f7">JWT</text>
+
+          <path d="M400,95 L505,140" stroke="#ff9e64" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M400,195 L505,160" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M810,150 L975,150" stroke="#9ece6a" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M400,75 L400,40 L1140,40 L1140,105" stroke="#ff9e64" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+
+          <!-- CLIENT -->
+          <circle cx="800" cy="320" r="46" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="800" y="326" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#9aa5ce">Client</text>
+          <path d="M1140,190 L1140,255 L800,255 L800,272" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M800,366 L800,410 L220,410 L220,477" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+
+          <!-- VERIFYING group -->
+          <rect x="40" y="440" width="1520" height="230" rx="10" fill="none" stroke="#565f89" stroke-width="2" stroke-dasharray="8 6"/>
+          <text x="1520" y="466" text-anchor="end" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9aa5ce">VERIFYING (server)</text>
+
+          <rect x="80" y="480" width="280" height="70" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="220" y="522" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">JWT (received)</text>
+
+          <rect x="480" y="480" width="300" height="70" rx="8" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="630" y="522" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#ff9e64">header.payload</text>
+
+          <rect x="80" y="600" width="280" height="60" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="220" y="637" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">signature (received)</text>
+
+          <rect x="480" y="600" width="300" height="60" rx="8" fill="#1f2335" stroke="#f7768e" stroke-width="2"/>
+          <text x="630" y="637" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#f7768e">secret</text>
+
+          <rect x="1120" y="480" width="280" height="70" rx="8" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1260" y="514" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#bb9af7">new signature</text>
+          <text x="1260" y="534" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">(recomputed)</text>
+
+          <path d="M360,505 L475,505" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M220,550 L220,597" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M780,510 L1115,510" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+          <path d="M785,615 L1115,535" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#jv-a)"/>
+
+          <path d="M1260,550 L1260,585 L220,585 L220,597" stroke="#e0af68" stroke-width="2" stroke-dasharray="6 5" fill="none"/>
+          <text x="740" y="578" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#e0af68">=?</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:0;padding:12px 24px;font-size:19px;">✅ signatures match → token valid, request proceeds &nbsp;·&nbsp; ❌ mismatch → <code class="icode">401</code>. <b>The secret is only known to the server.</b></div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">jwt.js</div><div class="spacer"></div><div class="seg right">19 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · WHERE TO STORE/SEND JWT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">storage.md</div>
+        <div class="breadcrumb">lecture11 / <b>where-to-store-jwt</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two options, two trade-offs</div>
+        <h2 class="title reveal">Where to Store / Send <span class="hl">JWT</span>?</h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label good">Option 1 — Authorization: Bearer &lt;token&gt;</div>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:21px;">✅ avoids CSRF by default (browser won't auto-attach)</li>
+                    <li style="font-size:21px;">✅ common for APIs / mobile apps</li>
+                    <li style="font-size:21px;">⚠️ vulnerable if stored in <code class="icode">localStorage</code> and you have XSS</li>
+                </ul>
+            </div>
+            <div>
+                <div class="compare-label good">Option 2 — HttpOnly cookie</div>
+                <ul class="list" style="gap:10px;">
+                    <li style="font-size:21px;">✅ mitigates token theft via XSS</li>
+                    <li style="font-size:21px;">⚠️ brings CSRF back (need <code class="icode">SameSite</code> + CSRF token)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">storage.md</div><div class="spacer"></div><div class="seg right">20 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · SESSION VS JWT DECISION TABLE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">decision.md</div>
+        <div class="breadcrumb">lecture11 / <b>session-vs-jwt</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">picking a lane</div>
+        <h2 class="title reveal">Session <span class="hl">vs.</span> JWT</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Topic</th><th>Session + Cookie</th><th>JWT (Bearer)</th></tr></thead>
+            <tbody>
+                <tr><td>State</td><td>Server-side</td><td>Client-side (token)</td></tr>
+                <tr><td>Logout</td><td>Easy (destroy session)</td><td>Harder (wait for expiry / revoke)</td></tr>
+                <tr><td>Scaling</td><td>Needs shared store (Redis/DB)</td><td>Easier (just verify the token)</td></tr>
+                <tr><td>CSRF</td><td>Higher risk</td><td>Low by default</td></tr>
+                <tr><td>XSS impact</td><td><code>HttpOnly</code> helps</td><td>Depends on storage — avoid <code>localStorage</code></td></tr>
+                <tr><td>Best for</td><td>Traditional web apps</td><td>APIs, mobile, microservices</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">decision.md</div><div class="spacer"></div><div class="seg right">21 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · DISADVANTAGES OF JWT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">disadvantages.md</div>
+        <div class="breadcrumb">lecture11 / <b>disadvantages-of-jwt</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">stateless has a price</div>
+        <h2 class="title reveal">Disadvantages <span class="hl">of JWT</span></h2>
+        <ul class="list reveal">
+            <li><strong>Compromised secret/key:</strong> all tokens become forgeable</li>
+            <li><strong>Data visibility:</strong> payload is readable (not encrypted)</li>
+            <li><strong>Revocation is harder:</strong> needs a strategy (short exp / refresh / denylist)</li>
+            <li><strong>Overhead:</strong> larger than a session id cookie</li>
+        </ul>
+        <div class="note warn reveal" style="margin-top:20px;"><b>Avoid:</b> putting tokens in URLs — URLs leak via logs, browser history, and referrers.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">disadvantages.md</div><div class="spacer"></div><div class="seg right">22 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · JWT IN NODE.JS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">packages.md</div>
+        <div class="breadcrumb">lecture11 / <b>jwt-in-nodejs</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the packages you'll actually use</div>
+        <h2 class="title reveal">JWT <span class="hl">in Node.js</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3><code>jsonwebtoken</code></h3>
+                <p style="font-size:22px;color:var(--fg-dim);">Sign and verify tokens directly — <code class="icode">jwt.sign()</code>, <code class="icode">jwt.verify()</code>.</p>
+            </div>
+            <div class="col-card accent-teal">
+                <h3><code>passport-jwt</code></h3>
+                <p style="font-size:22px;color:var(--fg-dim);">A Passport.js strategy — plugs JWT verification into a broader auth middleware ecosystem.</p>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">packages.md</div><div class="spacer"></div><div class="seg right">23 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · SECTION DIVIDER: AUTHORIZATION ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">auth.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture11</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Authorization <span class="hl">(AuthZ)</span></div>
+            <div class="by" style="margin-top:18px;">you're logged in — now what can you do?<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 25 · AUTHORIZATION PATTERNS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">authz.js</div>
+        <div class="breadcrumb">lecture11 / <b>authorization-patterns</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three levels of "allowed"</div>
+        <h2 class="title reveal">Authorization <span class="hl">Patterns</span></h2>
+        <ul class="list reveal">
+            <li><strong>1. Route-level:</strong> must be logged in</li>
+            <li><strong>2. RBAC:</strong> role-based access control (admin / user)</li>
+            <li><strong>3. Resource ownership:</strong> a user can only access their own data</li>
+        </ul>
+        <div class="codeblock sm reveal" style="margin-top:12px;">
+            <div class="cb-bar">example rule</div>
+            <pre><span class="tok-kw">const</span> canRead <span class="tok-op">=</span> user<span class="tok-pun">.</span>role <span class="tok-op">===</span> <span class="tok-str">'admin'</span> <span class="tok-op">||</span> order<span class="tok-pun">.</span>userId <span class="tok-op">===</span> user<span class="tok-pun">.</span>id<span class="tok-pun">;</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">authz.js</div><div class="spacer"></div><div class="seg right">25 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · JWT IMPLEMENTATION CHECKLIST ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">checklist.md</div>
+        <div class="breadcrumb">lecture11 / <b>jwt-implementation-checklist</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">five things, every time</div>
+        <h2 class="title reveal">JWT Implementation <span class="hl">Checklist</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list" style="gap:12px;">
+                    <li style="font-size:22px;"><strong>1. Password storage:</strong> never plaintext — <code class="icode">bcrypt</code> with salt rounds ≥ 10</li>
+                    <li style="font-size:22px;"><strong>2. Token signing:</strong> a strong secret (or RS256 key pair in prod)</li>
+                    <li style="font-size:22px;"><strong>3. Token expiration:</strong> short-lived access tokens (15min–1h) + refresh</li>
+                    <li style="font-size:22px;"><strong>4. Middleware:</strong> verify on protected routes, attach user to <code class="icode">req</code></li>
+                    <li style="font-size:22px;"><strong>5. Error messages:</strong> never reveal "user not found" vs "wrong password"</li>
+                </ul>
+            </div>
+            <div class="compare">
+                <div>
+                    <div class="compare-label bad">❌ reveals which part is wrong</div>
+                    <div class="codeblock xs">
+                        <div class="cb-bar">leaky</div>
+                        <pre><span class="tok-kw">if</span> <span class="tok-pun">(!</span>user<span class="tok-pun">)</span>
+  <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span>
+    error<span class="tok-pun">:</span> <span class="tok-str">'User not found'</span>
+  <span class="tok-pun">});</span></pre>
+                    </div>
+                </div>
+                <div>
+                    <div class="compare-label good">✅ generic message</div>
+                    <div class="codeblock xs">
+                        <div class="cb-bar">safe</div>
+                        <pre><span class="tok-kw">if</span> <span class="tok-pun">(!</span>user <span class="tok-op">||</span> <span class="tok-pun">!</span>match<span class="tok-pun">) {</span>
+  <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span>
+    error<span class="tok-pun">:</span> <span class="tok-str">'Invalid credentials'</span>
+  <span class="tok-pun">});</span>
+<span class="tok-pun">}</span></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">checklist.md</div><div class="spacer"></div><div class="seg right">26 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · AUTH MIDDLEWARE PATTERN ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">middlewares/auth.js</div>
+        <div class="breadcrumb">lecture11 / <b>auth-middleware-pattern</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">verify once, reuse everywhere</div>
+        <h2 class="title reveal">Auth <span class="hl">Middleware</span> Pattern</h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">middlewares/auth.js</div>
+            <pre><span class="tok-kw">const</span> jwt <span class="tok-op">=</span> <span class="tok-fn">require</span><span class="tok-pun">(</span><span class="tok-str">'jsonwebtoken'</span><span class="tok-pun">);</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">authMiddleware</span><span class="tok-pun">(</span>req<span class="tok-pun">,</span> res<span class="tok-pun">,</span> next<span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> header <span class="tok-op">=</span> req<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>authorization<span class="tok-pun">;</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>header<span class="tok-pun">?.</span><span class="tok-fn">startsWith</span><span class="tok-pun">(</span><span class="tok-str">'Bearer '</span><span class="tok-pun">))</span> <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> error<span class="tok-pun">:</span> <span class="tok-str">'No token provided'</span> <span class="tok-pun">});</span>
+
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">const</span> token <span class="tok-op">=</span> header<span class="tok-pun">.</span><span class="tok-fn">split</span><span class="tok-pun">(</span><span class="tok-str">' '</span><span class="tok-pun">)[</span><span class="tok-num">1</span><span class="tok-pun">];</span>
+    <span class="tok-kw">const</span> decoded <span class="tok-op">=</span> jwt<span class="tok-pun">.</span><span class="tok-fn">verify</span><span class="tok-pun">(</span>token<span class="tok-pun">,</span> process<span class="tok-pun">.</span>env<span class="tok-pun">.</span><span class="tok-cls">JWT_SECRET</span><span class="tok-pun">);</span>
+    req<span class="tok-pun">.</span>user <span class="tok-op">=</span> decoded<span class="tok-pun">;</span>  <span class="tok-com">// attach user info to request</span>
+    <span class="tok-fn">next</span><span class="tok-pun">();</span>
+  <span class="tok-pun">}</span> <span class="tok-kw">catch</span> <span class="tok-pun">(</span>err<span class="tok-pun">) {</span>
+    res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">401</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> error<span class="tok-pun">:</span> <span class="tok-str">'Invalid or expired token'</span> <span class="tok-pun">});</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-com">// usage</span>
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/api/profile'</span><span class="tok-pun">,</span> authMiddleware<span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt;</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">({</span> user<span class="tok-pun">:</span> req<span class="tok-pun">.</span>user <span class="tok-pun">}));</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">middlewares/auth.js</div><div class="spacer"></div><div class="seg right">27 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 28 · SUMMARY (RULES OF THUMB) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">rules-of-thumb.md</div>
+        <div class="breadcrumb">lecture11 / <b>rules-of-thumb</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">when in doubt</div>
+        <h2 class="title reveal">Summary <span class="hl">(Rules of Thumb)</span></h2>
+        <ul class="list reveal">
+            <li><strong>Browser web app:</strong> session-cookie is simplest — use secure cookie flags + CSRF protection</li>
+            <li><strong>APIs / mobile / microservices:</strong> JWT bearer is common — short expiry + refresh strategy</li>
+            <li>Always implement <strong style="color:var(--red);">AuthZ</strong> explicitly (roles + resource ownership)</li>
+            <li><strong>Secure defaults:</strong>
+                <ul class="list" style="margin-top:8px;">
+                    <li class="sub">Never put tokens in URLs</li>
+                    <li class="sub">Avoid storing tokens in <code class="icode">localStorage</code></li>
+                    <li class="sub">Validate <code class="icode">exp</code>/<code class="icode">iss</code>/<code class="icode">aud</code> and lock down algorithms</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">rules-of-thumb.md</div><div class="spacer"></div><div class="seg right">28 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 29 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture11</div>
+        <div class="breadcrumb">lecture11 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>🪪 AuthN vs. AuthZ</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Who you are vs. what you can do</li>
+                    <li style="font-size:20px;">Attaching identity to every request</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🍪 Cookies + Sessions</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Stateful, server-side session store</li>
+                    <li style="font-size:20px;">CSRF, session fixation risks</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🔑 JWT</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Stateless, client-side, signed not encrypted</li>
+                    <li style="font-size:20px;">XSS risk depends on storage</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🛡️ Implementation</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Password hashing, token middleware</li>
+                    <li style="font-size:20px;">Role-based access control</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next:</b> Mini Mock #2 — then the React phase begins!
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture11</div><div class="spacer"></div><div class="seg right">29 / 30</div></div>
+</div>
+</section>
+
+<!-- ============ 30 · MINI MOCK #2 REMINDER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mini-mock-2.md</div>
+        <div class="breadcrumb">lecture11 / <b>mini-mock-2-reminder</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the checkpoint before React</div>
+        <h2 class="title reveal">Mini Mock #2 <span class="hl">Reminder</span></h2>
+        <p class="lead-in reveal">After this lecture, you'll have a <strong style="color:var(--cyan);">Mini Mock</strong> covering the entire backend phase:</p>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>🧠 Concepts</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">API design principles, HTTP status codes, auth flow</p>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>⌨️ Coding</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Implement a small endpoint with authentication (no AI)</p>
+            </div>
+            <div class="col-card accent-red">
+                <h3>🔍 Code Review</h3>
+                <p style="font-size:19px;color:var(--fg-dim);">Find security issues in given code</p>
+            </div>
+        </div>
+        <div class="note warn reveal" style="margin-top:24px;">This is the checkpoint before entering the React phase. Make sure you can explain the <b>JWT flow</b> on a whiteboard!</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mini-mock-2.md</div><div class="spacer"></div><div class="seg right">30 / 30</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture11-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture11.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>
