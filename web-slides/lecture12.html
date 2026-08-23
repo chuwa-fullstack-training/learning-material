@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 12 — React Fundamentals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–11) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 12 ADDITIONS: phase-milestone banner === */
+.phase-banner { display:flex;align-items:center;gap:28px;flex:1;min-height:0;justify-content:center; }
+.phase-chip { display:flex;flex-direction:column;align-items:center;gap:10px;padding:30px 34px;border-radius:16px;background:var(--panel);border:2px solid var(--border-soft);opacity:0.5;transform:scale(0.96); }
+.phase-chip .pc-icon { font-size:40px; }
+.phase-chip .pc-label { font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--fg-dim); }
+.phase-chip.done { opacity:0.85;border-color:var(--green); }
+.phase-chip.done .pc-label { color:var(--green); }
+.phase-chip.now { opacity:1;transform:scale(1.06);border-color:var(--cyan);box-shadow:0 0 46px rgba(125,207,255,0.28); }
+.phase-chip.now .pc-label { color:var(--cyan); }
+.phase-arrow { font-size:34px;color:var(--fg-faint); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">~/fullstack-training <span class="dirty">— zsh</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ npm create vite@latest</span></div>
+            <div class="term-out">› Loading: JSX · components · props · state</div>
+            <div class="section-num">Lecture 12</div>
+            <h1>React <span class="hl">Fundamentals</span></h1>
+            <div class="by">// The Frontend Phase Begins<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Concept understanding by hand, simple components can reference AI.</b> JSX syntax, component concepts, and basic State must be hand-written. Simple HTML → React conversions can reference AI.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · WELCOME TO THE FRONTEND PHASE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">roadmap.md</div>
+        <div class="breadcrumb">lecture12 / <b>frontend-phase-begins</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a milestone moment</div>
+        <h2 class="title reveal">The Backend Is Done. <span class="hl">Frontend Starts Now.</span></h2>
+        <div class="phase-banner reveal">
+            <div class="phase-chip done"><div class="pc-icon">✅</div><div class="pc-label">L1–L11<br>JS · Node · DB · Auth</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip now"><div class="pc-icon">⚛️</div><div class="pc-label">L12–L17<br>React · Redux · Testing</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip"><div class="pc-icon">🚀</div><div class="pc-label">L18+<br>GraphQL · SSR · Real-Time</div></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">Everything you learned about <b>HTTP, data, and APIs</b> now has a UI to attach to. This is where the backend you built starts feeling like a real product.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">roadmap.md</div><div class="spacer"></div><div class="seg right">02 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · WELCOME TO FRONTEND DEVELOPMENT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">frontend.md</div>
+        <div class="breadcrumb">lecture12 / <b>welcome-to-frontend</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the other half of the stack</div>
+        <h2 class="title reveal">Welcome to <span class="hl">Frontend Development</span></h2>
+        <ul class="list reveal">
+            <li>Frontend is the part of the website that users can <strong>see and interact with</strong></li>
+            <li>Also called <strong style="color:var(--cyan);">client-side</strong></li>
+            <li>Built with <strong>HTML</strong>, <strong>CSS</strong>, and <strong>JavaScript</strong></li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">frontend.md</div><div class="spacer"></div><div class="seg right">03 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · A BRIEF HISTORY OF FRONTEND ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">history.md</div>
+        <div class="breadcrumb">lecture12 / <b>brief-history-of-frontend</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 20px;">
+        <div class="kicker reveal">how we got here</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">A Brief History <span class="hl">of Frontend</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 420" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <line x1="40" y1="210" x2="1560" y2="210" stroke="#2a2e45" stroke-width="3"/>
+          <!-- Early web -->
+          <circle cx="80" cy="210" r="9" fill="#565f89"/>
+          <text x="80" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">Early web</text>
+          <text x="80" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">static HTML</text>
+          <text x="80" y="268" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">→ CSS → JS</text>
+
+          <!-- 2006 jQuery -->
+          <circle cx="380" cy="210" r="9" fill="#7dcfff"/>
+          <text x="380" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#7dcfff">2006</text>
+          <text x="380" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#c0caf5">jQuery</text>
+          <text x="380" y="270" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">easier DOM, no data layer</text>
+
+          <!-- 2010-11 -->
+          <circle cx="700" cy="210" r="9" fill="#ff9e64"/>
+          <text x="700" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#ff9e64">2010–11</text>
+          <text x="700" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#c0caf5">AngularJS</text>
+          <text x="700" y="270" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">Backbone · Knockout · Ember</text>
+
+          <!-- 2013 React / 2014 Vue -->
+          <circle cx="1000" cy="210" r="11" fill="#7aa2f7"/>
+          <text x="1000" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7aa2f7">2013 / 2014</text>
+          <text x="1000" y="253" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#7aa2f7">React</text>
+          <text x="1000" y="274" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">(Facebook) · Vue (2014)</text>
+
+          <!-- 2015 Redux -->
+          <circle cx="1250" cy="210" r="9" fill="#bb9af7"/>
+          <text x="1250" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#bb9af7">2015</text>
+          <text x="1250" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#c0caf5">Redux</text>
+          <text x="1250" y="270" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">state management</text>
+
+          <!-- 2022 React 18 -->
+          <circle cx="1520" cy="210" r="11" fill="#9ece6a"/>
+          <text x="1520" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">2022</text>
+          <text x="1470" y="253" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">React 18</text>
+          <text x="1470" y="274" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">concurrent · SSR · Suspense</text>
+        </svg>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">history.md</div><div class="spacer"></div><div class="seg right">04 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · WEB APPLICATION 101 (WATERFALL) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">network</div>
+        <div class="breadcrumb">lecture12 / <b>web-application-101</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 20px;">
+        <div class="kicker reveal">websites vs. web applications</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">Web Application <span class="hl">101</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 460" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="wf-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#565f89"/></marker>
+          </defs>
+          <path d="M40,30 L1560,30" stroke="#565f89" stroke-width="2" marker-end="url(#wf-a)"/>
+          <text x="40" y="18" font-family="JetBrains Mono" font-size="15" fill="#9aa5ce">time</text>
+
+          <rect x="40" y="60" width="220" height="60" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="150" y="97" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">HTML file</text>
+
+          <path d="M150,120 C150,170 320,170 320,205" stroke="#565f89" stroke-width="2" stroke-dasharray="6 5" fill="none" marker-end="url(#wf-a)"/>
+          <rect x="320" y="210" width="200" height="60" rx="8" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="420" y="247" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">JS file</text>
+
+          <rect x="320" y="290" width="200" height="60" rx="8" fill="#1f2335" stroke="#e0af68" stroke-width="2"/>
+          <text x="420" y="327" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#e0af68">CSS file</text>
+
+          <path d="M520,320 C660,320 660,380 800,380" stroke="#565f89" stroke-width="2" stroke-dasharray="6 5" fill="none" marker-end="url(#wf-a)"/>
+          <rect x="800" y="350" width="210" height="60" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="905" y="387" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">JPG file</text>
+
+          <rect x="1050" y="350" width="210" height="60" rx="8" fill="#1f2335" stroke="#565f89" stroke-width="2" stroke-dasharray="5 4"/>
+          <text x="1155" y="387" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="#9aa5ce">…more</text>
+
+          <path d="M1010,420 L1440,440" stroke="#565f89" stroke-width="2" marker-end="url(#wf-a)"/>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">Every referenced file is its own <b>round trip</b> — and each one can only be discovered <em style="color:var(--orange);">after</em> the file that references it arrives. That's the "waterfall."</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">network</div><div class="spacer"></div><div class="seg right">05 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · WEB APPLICATION 101 (SSR) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">round-trip</div>
+        <div class="breadcrumb">lecture12 / <b>web-application-101-ssr</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 20px;">
+        <div class="kicker reveal">the old way: full page reload per action</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">Web Application 101 <span class="hl">(cont'd)</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 360" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="ssr-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <rect x="40" y="120" width="260" height="120" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="170" y="188" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#7aa2f7">Client</text>
+
+          <rect x="670" y="120" width="260" height="120" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="800" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#bb9af7">Web</text>
+          <text x="800" y="204" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#bb9af7">Server</text>
+
+          <rect x="1300" y="120" width="260" height="120" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2"/>
+          <text x="1430" y="188" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#ff9e64">Database</text>
+
+          <path d="M300,160 L665,160" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#ssr-a)"/>
+          <text x="482" y="148" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#7dcfff">create post</text>
+
+          <path d="M665,220 L300,220" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#ssr-a)"/>
+          <text x="482" y="245" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#7dcfff">redirect /post/:id</text>
+
+          <path d="M930,160 L1295,160" stroke="#ff9e64" stroke-width="2" fill="none" marker-end="url(#ssr-a)"/>
+          <text x="1112" y="148" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#ff9e64">insert into db</text>
+
+          <path d="M1295,220 L930,220" stroke="#ff9e64" stroke-width="2" fill="none" marker-end="url(#ssr-a)"/>
+          <text x="1112" y="245" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#ff9e64">confirmed</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">The whole page reloads for every step — the client has no memory of state between requests. This is exactly what <b>SPAs</b> set out to fix.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">round-trip</div><div class="spacer"></div><div class="seg right">06 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · SINGLE PAGE APPLICATION (SPA) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">index.html</div>
+        <div class="breadcrumb">lecture12 / <b>single-page-application</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one shell, infinite views</div>
+        <h2 class="title reveal">Single Page <span class="hl">Application</span> (SPA)</h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>Get <strong>one</strong> HTML file — the rest is JavaScript</li>
+                    <li><strong style="color:var(--cyan);">Client-side routing</strong>, dynamic content updates</li>
+                    <li>No full page reload between "pages"</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">index.html</div>
+                <pre><span class="tok-pun">&lt;!DOCTYPE</span> html<span class="tok-pun">&gt;</span>
+<span class="tok-pun">&lt;</span><span class="tok-tag">html</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;</span><span class="tok-tag">head</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">title</span><span class="tok-pun">&gt;</span>My First SPA<span class="tok-pun">&lt;/</span><span class="tok-tag">title</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">head</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;</span><span class="tok-tag">body</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span> <span class="tok-attr">id</span><span class="tok-op">=</span><span class="tok-str">"root"</span><span class="tok-pun">&gt;&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">script</span> <span class="tok-attr">src</span><span class="tok-op">=</span><span class="tok-str">"bundle.js"</span><span class="tok-pun">&gt;&lt;/</span><span class="tok-tag">script</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">body</span><span class="tok-pun">&gt;</span>
+<span class="tok-pun">&lt;/</span><span class="tok-tag">html</span><span class="tok-pun">&gt;</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">index.html</div><div class="spacer"></div><div class="seg right">07 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · SECTION DIVIDER: REACT BASICS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">App.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture12</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle"><span class="hl">React</span> Basics</div>
+            <div class="by" style="margin-top:18px;">why it exists, virtual DOM, JSX<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 09 · REACT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">react.md</div>
+        <div class="breadcrumb">lecture12 / <b>react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the library, in one slide</div>
+        <h2 class="title reveal"><span class="hl">React</span></h2>
+        <ul class="list reveal">
+            <li>A JavaScript <strong>library</strong> for building user interfaces</li>
+            <li>Developed and maintained by <strong style="color:var(--cyan);">Meta</strong> (Facebook)</li>
+            <li>Used for SPAs, mobile (<strong>React Native</strong>), desktop (<strong>Electron</strong>)</li>
+            <li><strong style="color:var(--orange);">Component-based</strong>: a component is a reusable piece of UI</li>
+            <li><strong style="color:var(--orange);">Declarative</strong>: describe what the UI should look like, React handles DOM updates</li>
+            <li>Uses <strong style="color:var(--cyan);">JSX</strong> — a syntax extension to write HTML in JavaScript</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">react.md</div><div class="spacer"></div><div class="seg right">09 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · WHY REACT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why-react.md</div>
+        <div class="breadcrumb">lecture12 / <b>why-react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the case for it</div>
+        <h2 class="title reveal">Why <span class="hl">React</span>?</h2>
+        <div class="cols c4 reveal">
+            <div class="col-card accent-blue" style="padding:26px 24px;"><h3>🧩 Component-based</h3><p style="font-size:17px;color:var(--fg-dim);">Declarative UI, composable pieces.</p></div>
+            <div class="col-card accent-orange" style="padding:26px 24px;"><h3>🌍 Learn Once</h3><p style="font-size:17px;color:var(--fg-dim);">Write anywhere — web, mobile, desktop.</p></div>
+            <div class="col-card accent-teal" style="padding:26px 24px;"><h3>⚡ Virtual DOM</h3><p style="font-size:17px;color:var(--fg-dim);">Fast, batched rendering.</p></div>
+            <div class="col-card accent-purple" style="padding:26px 24px;"><h3>🌐 Huge Ecosystem</h3><p style="font-size:17px;color:var(--fg-dim);">Libraries, tooling, community.</p></div>
+        </div>
+        <div class="note reveal" style="margin-top:24px;">Used by <b>Google, Meta, Netflix, Airbnb, Uber, Discord, Reddit</b>… and now, by you.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why-react.md</div><div class="spacer"></div><div class="seg right">10 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · VIRTUAL DOM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">vdom.md</div>
+        <div class="breadcrumb">lecture12 / <b>virtual-dom</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 60px 20px;">
+        <div class="kicker reveal">diff, then patch — only what changed</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">Virtual <span class="hl">DOM</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 440" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="vd-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <text x="220" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9aa5ce">Virtual DOM (before)</text>
+          <rect x="120" y="50" width="200" height="46" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="220" y="79" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#7aa2f7">&lt;App&gt;</text>
+          <line x1="220" y1="96" x2="220" y2="120" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="90" y1="120" x2="350" y2="120" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="90" y1="120" x2="90" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="220" y1="120" x2="220" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="350" y1="120" x2="350" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <rect x="10" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="90" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">&lt;Header&gt;</text>
+          <rect x="140" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#f7768e" stroke-width="2"/>
+          <text x="220" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#f7768e">count: 1</text>
+          <rect x="270" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="350" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">&lt;Footer&gt;</text>
+
+          <path d="M460,163 L570,163" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#vd-a)"/>
+          <text x="515" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#7dcfff">diff</text>
+
+          <text x="800" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9aa5ce">Virtual DOM (after)</text>
+          <rect x="700" y="50" width="200" height="46" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="800" y="79" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#7aa2f7">&lt;App&gt;</text>
+          <line x1="800" y1="96" x2="800" y2="120" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="670" y1="120" x2="930" y2="120" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="670" y1="120" x2="670" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="800" y1="120" x2="800" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <line x1="930" y1="120" x2="930" y2="140" stroke="#2a2e45" stroke-width="2"/>
+          <rect x="590" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="670" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">&lt;Header&gt;</text>
+          <rect x="720" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="800" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#9ece6a">count: 2</text>
+          <rect x="850" y="140" width="160" height="42" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="930" y="166" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">&lt;Footer&gt;</text>
+
+          <path d="M800,182 L800,240 L800,240" stroke="#9ece6a" stroke-width="2" fill="none"/>
+          <path d="M800,182 L800,290" stroke="#9ece6a" stroke-width="2" fill="none" marker-end="url(#vd-a)"/>
+          <text x="825" y="240" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#9ece6a">patch ONLY this node</text>
+
+          <rect x="600" y="310" width="400" height="80" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="800" y="345" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#9ece6a">Real DOM</text>
+          <text x="800" y="372" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">one text node updated, not the whole tree</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:2px;">React diffs old vs. new virtual trees <b>level by level, by type, by key</b> — an O(n) strategy that avoids re-rendering the whole page.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">vdom.md</div><div class="spacer"></div><div class="seg right">11 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · SETTING UP A REACT PROJECT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terminal</div>
+        <div class="breadcrumb">lecture12 / <b>setting-up-react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">four commands to a running app</div>
+        <h2 class="title reveal">Setting Up <span class="hl">a React Project</span></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">npm</span> create vite@latest my-app -- --template react
+<span class="tok-kw">cd</span> my-app
+<span class="tok-fn">npm</span> install
+<span class="tok-fn">npm</span> run dev</pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li><strong>Scaffold tools:</strong> Vite (recommended), CRA (legacy), Next.js (SSR), Astro (static)</li>
+            <li><strong>Useful VS Code extensions:</strong> ESLint, Prettier, ES7+ React snippets, React Developer Tools (Chrome)</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terminal</div><div class="spacer"></div><div class="seg right">12 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · JSX ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">jsx.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>jsx</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">HTML-looking JavaScript</div>
+        <h2 class="title reveal"><span class="hl">JSX</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A syntax extension to JavaScript — looks like HTML, compiles to JS</li>
+                    <li>Must have <strong>one root element</strong> (or use <code class="icode">&lt;&gt;...&lt;/&gt;</code> fragment)</li>
+                    <li>Use <code class="icode">className</code> instead of <code class="icode">class</code>, <code class="icode">htmlFor</code> instead of <code class="icode">for</code></li>
+                    <li>Use <code class="icode">{'{}'}</code> to embed JavaScript expressions</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">jsx.jsx</div>
+                <pre><span class="tok-kw">const</span> element <span class="tok-op">=</span> <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>Hello World<span class="tok-pun">&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;;</span>
+
+<span class="tok-com">// Compiles to:</span>
+<span class="tok-kw">const</span> element <span class="tok-op">=</span> <span class="tok-cls">React</span><span class="tok-pun">.</span><span class="tok-fn">createElement</span><span class="tok-pun">(</span>
+  <span class="tok-str">'h1'</span><span class="tok-pun">,</span> <span class="tok-kw">null</span><span class="tok-pun">,</span> <span class="tok-str">'Hello World'</span>
+<span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">jsx.jsx</div><div class="spacer"></div><div class="seg right">13 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · JSX (CONT'D) ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">App.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>jsx-contd</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a fuller example</div>
+        <h2 class="title reveal">JSX <span class="hl">(cont'd)</span></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">App.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">App</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> name <span class="tok-op">=</span> <span class="tok-str">'React'</span><span class="tok-pun">;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>Hello <span class="tok-pun">{</span>name<span class="tok-pun">}&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">label</span> <span class="tok-attr">htmlFor</span><span class="tok-op">=</span><span class="tok-str">"search"</span><span class="tok-pun">&gt;</span>Search: <span class="tok-pun">&lt;/</span><span class="tok-tag">label</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">input</span> <span class="tok-attr">id</span><span class="tok-op">=</span><span class="tok-str">"search"</span> <span class="tok-attr">type</span><span class="tok-op">=</span><span class="tok-str">"text"</span> <span class="tok-pun">/&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">App.jsx</div><div class="spacer"></div><div class="seg right">14 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · SECTION DIVIDER: COMPONENTS, PROPS & STATE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">Counter.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture12</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Components, Props <span class="hl">&amp; State</span></div>
+            <div class="by" style="margin-top:18px;">the building blocks of every React app<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 16 · FUNCTION COMPONENTS + PROPS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Greeting.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>function-components-props</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a function that returns UI</div>
+        <h2 class="title reveal">Function Components <span class="hl">+ Props</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li>A function component is a JavaScript function that returns JSX</li>
+                    <li><strong style="color:var(--cyan);">Props</strong> are read-only inputs passed from parent to child</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">Greeting.jsx</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">Greeting</span><span class="tok-pun">({</span> name<span class="tok-pun">,</span> role <span class="tok-pun">}) {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>Hello, <span class="tok-pun">{</span>name<span class="tok-pun">}</span>!<span class="tok-pun">&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Role: <span class="tok-pun">{</span>role<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-com">// Usage</span>
+<span class="tok-pun">&lt;</span><span class="tok-cls">Greeting</span> <span class="tok-attr">name</span><span class="tok-op">=</span><span class="tok-str">"Alice"</span> <span class="tok-attr">role</span><span class="tok-op">=</span><span class="tok-str">"Admin"</span> <span class="tok-pun">/&gt;</span></pre>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:12px;">Props flow <b>one way</b>: parent → child. This is called "uni-directional data flow."</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Greeting.jsx</div><div class="spacer"></div><div class="seg right">16 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · USESTATE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">state.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>usestate</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">data that changes over time</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useState</code> — <span class="hl">Managing State</span></h2>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">state.jsx</div>
+                <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> useState <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">Counter</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>count<span class="tok-pun">,</span> setCount<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Count: <span class="tok-pun">{</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">setCount</span><span class="tok-pun">(</span>count <span class="tok-op">+</span> <span class="tok-num">1</span><span class="tok-pun">)}&gt;</span>+1<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>State is <strong>private</strong> to the component</li>
+                    <li>Calling <code class="icode">setState</code> triggers a <strong style="color:var(--cyan);">re-render</strong></li>
+                    <li><code class="icode">setState</code> is <strong style="color:var(--orange);">asynchronous</strong> — React batches updates</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">state.jsx</div><div class="spacer"></div><div class="seg right">17 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · EVENT HANDLING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">event-handling.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>event-handling</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">responding to the user</div>
+        <h2 class="title reveal">Event <span class="hl">Handling</span></h2>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">event-handling.jsx</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">SearchBox</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>query<span class="tok-pun">,</span> setQuery<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-str">''</span><span class="tok-pun">);</span>
+
+  <span class="tok-kw">const</span> handleChange <span class="tok-op">=</span> <span class="tok-pun">(</span>e<span class="tok-pun">) =&gt; {</span>
+    <span class="tok-fn">setQuery</span><span class="tok-pun">(</span>e<span class="tok-pun">.</span>target<span class="tok-pun">.</span>value<span class="tok-pun">);</span>
+  <span class="tok-pun">};</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">input</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-pun">{</span>query<span class="tok-pun">}</span> <span class="tok-attr">onChange</span><span class="tok-op">=</span><span class="tok-pun">{</span>handleChange<span class="tok-pun">}</span> <span class="tok-pun">/&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Searching for: <span class="tok-pun">{</span>query<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>React uses <strong style="color:var(--cyan);">Synthetic Events</strong> — a cross-browser wrapper around native events</li>
+                    <li>Use <code class="icode">onChange</code>, <code class="icode">onClick</code>, <code class="icode">onSubmit</code> — camelCase, not lowercase</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">event-handling.jsx</div><div class="spacer"></div><div class="seg right">18 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · CONDITIONAL RENDERING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">UserGreeting.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>conditional-rendering</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three patterns you'll use constantly</div>
+        <h2 class="title reveal">Conditional <span class="hl">Rendering</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">UserGreeting.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">UserGreeting</span><span class="tok-pun">({</span> isLoggedIn<span class="tok-pun">,</span> name <span class="tok-pun">}) {</span>
+  <span class="tok-com">// 1. if/else (for complex logic)</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>isLoggedIn<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Please log in.<span class="tok-pun">&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+      <span class="tok-com">{/* 2. &amp;&amp; operator (show or hide) */}</span>
+      <span class="tok-pun">{</span>name <span class="tok-op">&amp;&amp;</span> <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>Welcome, <span class="tok-pun">{</span>name<span class="tok-pun">}</span>!<span class="tok-pun">&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;}</span>
+      <span class="tok-com">{/* 3. Ternary (either/or) */}</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">span</span><span class="tok-pun">&gt;{</span>name <span class="tok-op">===</span> <span class="tok-str">'Admin'</span> <span class="tok-op">?</span> <span class="tok-str">'👑'</span> <span class="tok-op">:</span> <span class="tok-str">'👤'</span><span class="tok-pun">}&lt;/</span><span class="tok-tag">span</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">UserGreeting.jsx</div><div class="spacer"></div><div class="seg right">19 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · LISTS AND KEYS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">UserList.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>lists-and-keys</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">rendering arrays</div>
+        <h2 class="title reveal">Lists <span class="hl">and Keys</span></h2>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">UserList.jsx</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">UserList</span><span class="tok-pun">({</span> users <span class="tok-pun">}) {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">{</span>users<span class="tok-pun">.</span><span class="tok-fn">map</span><span class="tok-pun">(</span>user <span class="tok-op">=&gt;</span> <span class="tok-pun">(</span>
+        <span class="tok-pun">&lt;</span><span class="tok-tag">li</span> <span class="tok-attr">key</span><span class="tok-op">=</span><span class="tok-pun">{</span>user<span class="tok-pun">.</span>id<span class="tok-pun">}&gt;{</span>user<span class="tok-pun">.</span>name<span class="tok-pun">}&lt;/</span><span class="tok-tag">li</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">))}</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>Use <code class="icode">map()</code> to render lists</li>
+                    <li>Every list item needs a unique <code class="icode">key</code> prop — helps React identify what changed</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;"><b>Never use array index as key</b> if the list can be reordered or filtered — React will misidentify items and get the diff wrong.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">UserList.jsx</div><div class="spacer"></div><div class="seg right">20 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · PASSING DATA UP: CALLBACK PROPS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Parent.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>callback-props</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">child → parent communication</div>
+        <h2 class="title reveal">Passing Data Up: <span class="hl">Callback Props</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">Parent.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">Parent</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>items<span class="tok-pun">,</span> setItems<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">([]);</span>
+
+  <span class="tok-kw">const</span> handleAdd <span class="tok-op">=</span> <span class="tok-pun">(</span>newItem<span class="tok-pun">) =&gt; {</span>
+    <span class="tok-fn">setItems</span><span class="tok-pun">([...</span>items<span class="tok-pun">,</span> newItem<span class="tok-pun">]);</span>
+  <span class="tok-pun">};</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-cls">Child</span> <span class="tok-attr">onAdd</span><span class="tok-op">=</span><span class="tok-pun">{</span>handleAdd<span class="tok-pun">}</span> <span class="tok-pun">/&gt;;</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">Child</span><span class="tok-pun">({</span> onAdd <span class="tok-pun">}) {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">onAdd</span><span class="tok-pun">(</span><span class="tok-str">'New Item'</span><span class="tok-pun">)}&gt;</span>Add<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:12px;">Parent passes a callback function as a prop → Child calls it to send data <b>upward</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Parent.jsx</div><div class="spacer"></div><div class="seg right">21 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · SECTION DIVIDER: CLASS COMPONENTS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">class-component.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture12</span> <span class="cmd">$ // Part 3 (15 min)</span></div>
+            <div class="sectitle">Class Components <span class="hl">(Legacy)</span></div>
+            <div class="by" style="margin-top:18px;">read them; don't write new ones<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 23 · CLASS COMPONENTS: QUICK OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">class-component.jsx</div>
+        <div class="breadcrumb">lecture12 / <b>class-components-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">you'll meet these in older codebases</div>
+        <h2 class="title reveal">Class Components: <span class="hl">Quick Overview</span></h2>
+        <p class="lead-in reveal">Here is the minimum you need to read them:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">class-component.jsx</div>
+            <pre><span class="tok-kw">class</span> <span class="tok-cls">Counter</span> <span class="tok-kw">extends</span> <span class="tok-cls">React</span><span class="tok-pun">.</span><span class="tok-cls">Component</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">constructor</span><span class="tok-pun">(</span>props<span class="tok-pun">) {</span>
+    <span class="tok-fn">super</span><span class="tok-pun">(</span>props<span class="tok-pun">);</span> <span class="tok-kw">this</span><span class="tok-pun">.</span>state <span class="tok-op">=</span> <span class="tok-pun">{</span> count<span class="tok-pun">:</span> <span class="tok-num">0</span> <span class="tok-pun">};</span>
+  <span class="tok-pun">}</span>
+
+  <span class="tok-fn">render</span><span class="tok-pun">() {</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+        <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;{</span><span class="tok-kw">this</span><span class="tok-pun">.</span>state<span class="tok-pun">.</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+        <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-kw">this</span><span class="tok-pun">.</span><span class="tok-fn">setState</span><span class="tok-pun">({</span> count<span class="tok-pun">:</span> <span class="tok-kw">this</span><span class="tok-pun">.</span>state<span class="tok-pun">.</span>count <span class="tok-op">+</span> <span class="tok-num">1</span> <span class="tok-pun">})}&gt;</span>+1<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">);</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">class-component.jsx</div><div class="spacer"></div><div class="seg right">23 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · CLASS VS FUNCTION COMPONENT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture12 / <b>class-vs-function</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">pick a lane</div>
+        <h2 class="title reveal">Class <span class="hl">vs.</span> Function Component</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Feature</th><th>Class Component</th><th>Function Component</th></tr></thead>
+            <tbody>
+                <tr><td>Syntax</td><td><code>class X extends Component</code></td><td><code>function X()</code> or <code>const X = () =&gt;</code></td></tr>
+                <tr><td>State</td><td><code>this.state</code> + <code>this.setState()</code></td><td><code>useState()</code> hook</td></tr>
+                <tr><td>Lifecycle</td><td><code>componentDidMount</code> etc.</td><td><code>useEffect()</code> hook</td></tr>
+                <tr><td><code>this</code> binding</td><td>Required (common bug source)</td><td>Not needed</td></tr>
+                <tr><td>Code size</td><td>More boilerplate</td><td>Concise</td></tr>
+            </tbody>
+        </table>
+        <div class="note ok reveal" style="margin-top:20px;"><b>Rule:</b> use Function Components for all new code. Know Class Components to read legacy code.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">24 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · HOW TO THINK IN REACT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">thinking-in-react.md</div>
+        <div class="breadcrumb">lecture12 / <b>how-to-think-in-react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the official mental model</div>
+        <h2 class="title reveal">How to Think <span class="hl">in React</span></h2>
+        <ul class="list reveal">
+            <li><strong>1.</strong> Break the UI into components — draw boxes around each piece</li>
+            <li><strong>2.</strong> Build a static version first — props only, no state</li>
+            <li><strong>3.</strong> Identify the minimal state — what data changes over time?</li>
+            <li><strong>4.</strong> Decide where state lives — find the common parent</li>
+            <li><strong>5.</strong> Add interactivity — event handlers that call <code class="icode">setState</code></li>
+            <li><strong>6.</strong> Style it — CSS, CSS modules, or a component library</li>
+        </ul>
+        <div class="note reveal" style="margin-top:16px;">Practice this model on <b>every homework</b> — it's the process, not just the syntax, that makes you a React developer.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">thinking-in-react.md</div><div class="spacer"></div><div class="seg right">25 / 26</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture12</div>
+        <div class="breadcrumb">lecture12 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>⚛️ React Basics</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">SPA architecture and Virtual DOM</li>
+                    <li style="font-size:20px;">JSX syntax and rules</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>🧩 Components &amp; Props</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Function components, uni-directional data flow</li>
+                    <li style="font-size:20px;">Callback props for child → parent</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🔄 State &amp; Events</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code class="icode">useState</code>, Synthetic Events</li>
+                    <li style="font-size:20px;">Conditional and list rendering (keys)</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>🏛️ Legacy Awareness</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Class components: read, don't write</li>
+                    <li style="font-size:20px;">The "Thinking in React" model</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">
+            ⏭️ <b>Next lecture:</b> Side Effects, Refs, and Data Fetching
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture12</div><div class="spacer"></div><div class="seg right">26 / 26</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture12-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture12.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

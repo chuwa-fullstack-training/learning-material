@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 13 — Side Effects, Refs &amp; Data Fetching</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–12) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🎧";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 13 ADDITIONS: app arc chips + PodWave mockup === */
+.phase-banner { display:flex;align-items:center;gap:22px;flex:1;min-height:0;justify-content:center; }
+.phase-chip { display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 30px;border-radius:16px;background:var(--panel);border:2px solid var(--border-soft);opacity:0.55;transform:scale(0.96); }
+.phase-chip .pc-icon { font-size:36px; }
+.phase-chip .pc-label { font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--fg-dim);text-align:center; }
+.phase-chip.now { opacity:1;transform:scale(1.06);border-color:var(--teal);box-shadow:0 0 46px rgba(115,218,202,0.28); }
+.phase-chip.now .pc-label { color:var(--teal); }
+.phase-arrow { font-size:30px;color:var(--fg-faint); }
+
+.podwave-mock { display:flex;gap:30px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:0 20px 50px rgba(0,0,0,0.3); }
+.podwave-cover { width:150px;height:150px;border-radius:14px;background:linear-gradient(135deg,#7aa2f7,#bb9af7);display:flex;align-items:center;justify-content:center;font-size:56px;flex-shrink:0;box-shadow:0 12px 30px rgba(122,162,247,0.3); }
+.podwave-body { flex:1;display:flex;flex-direction:column;gap:12px;min-width:0; }
+.podwave-title { font-family:var(--font-display);font-weight:800;font-size:28px;color:var(--fg); }
+.podwave-artist { font-family:var(--font-mono);font-size:16px;color:var(--fg-dim);margin-top:-8px; }
+.podwave-bar { height:8px;border-radius:4px;background:var(--panel-2);overflow:hidden;position:relative;margin-top:6px; }
+.podwave-bar-fill { position:absolute;left:0;top:0;bottom:0;width:38%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:4px; }
+.podwave-times { display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint); }
+.podwave-controls { display:flex;align-items:center;gap:18px;margin-top:2px; }
+.podwave-play { width:48px;height:48px;border-radius:50%;background:var(--blue);color:#0b0d17;border:none;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.podwave-vol { display:flex;align-items:center;gap:10px;flex:1; }
+.podwave-vol-track { flex:1;height:6px;border-radius:3px;background:var(--panel-2);position:relative;overflow:hidden; }
+.podwave-vol-fill { position:absolute;left:0;top:0;bottom:0;width:70%;background:var(--teal);border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">Player.jsx <span class="dirty">— modified</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ // useEffect(() =&gt; { ... })</span></div>
+            <div class="term-out">› Loading: dependency arrays · refs · fetch</div>
+            <div class="section-num">Lecture 13</div>
+            <h1>Side Effects, Refs <span class="hl">&amp; Data Fetching</span></h1>
+            <div class="by">// useEffect · useRef · Forms · Fetching<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>useEffect must be understood on your own.</b> Dependency arrays and cleanup functions are the most common source of React bugs. Your Todo List (hw1) must be completed independently, then compared with AI output.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">lecture13 / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li><code class="icode">useEffect</code> deep dive</li>
+            <li><code class="icode">useRef</code> (DOM access + mutable values)</li>
+            <li>Controlled components and forms</li>
+            <li>Data fetching pattern (<code class="icode">useEffect</code> + <code class="icode">fetch</code> + loading/error)</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:28px;"><b>Live demo — App A, v0.1:</b> starting today, every concept below is also demoed on a running app: <b>PodWave</b>, a mini audio player. Code: <code class="icode">sample_code/lecture13/audio-player</code>. It continues into Lecture 14 (custom Hooks + composition), then retires — Lecture 15 starts a new app.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">02 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · MEET PODWAVE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">audio-player</div>
+        <div class="breadcrumb">lecture13 / <b>meet-podwave</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the through-line app begins</div>
+        <h2 class="title reveal">Meet <span class="hl">PodWave</span></h2>
+        <div class="split eq reveal">
+            <div class="podwave-mock">
+                <div class="podwave-cover">🎧</div>
+                <div class="podwave-body">
+                    <div class="podwave-title">Sunset Drive</div>
+                    <div class="podwave-artist">The Wanderers</div>
+                    <div class="podwave-bar"><div class="podwave-bar-fill"></div></div>
+                    <div class="podwave-times"><span>1:24</span><span>3:47</span></div>
+                    <div class="podwave-controls">
+                        <div class="podwave-play">▶</div>
+                        <div class="podwave-vol"><span style="font-size:15px;">🔊</span><div class="podwave-vol-track"><div class="podwave-vol-fill"></div></div></div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>A mini audio player — real code, live in class, all lecture</li>
+                    <li>Code: <code class="icode">sample_code/lecture13/audio-player</code></li>
+                    <li>Mock track list + real playable audio files (no backend needed)</li>
+                </ul>
+                <div class="phase-banner" style="justify-content:flex-start;margin-top:26px;gap:16px;">
+                    <div class="phase-chip now"><div class="pc-icon">🎧</div><div class="pc-label">L13<br>v0.1 core player</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">🧩</div><div class="pc-label">L14<br>v0.2 hooks + composition</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">👋</div><div class="pc-label">L15<br>retires</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:20px;">Every <code class="icode">useEffect</code> / <code class="icode">useRef</code> / form concept this lecture is demoed live in this running app — not just isolated snippets.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">audio-player</div><div class="spacer"></div><div class="seg right">03 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · SECTION DIVIDER: USEEFFECT DEEP DIVE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">useEffect.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture13</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle"><span class="hl">useEffect</span> Deep Dive</div>
+            <div class="by" style="margin-top:18px;">dependency arrays, cleanup, and the bugs they cause<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 05 · WHAT IS A SIDE EFFECT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">effects.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>what-is-a-side-effect</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">escaping the render function</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useEffect</code> — What Is a <span class="hl">Side Effect</span>?</h2>
+        <div class="split reveal">
+            <div>
+                <p class="lead-in" style="margin-bottom:18px;">Side effects are operations that reach <strong style="color:var(--cyan);">outside the React render cycle</strong>:</p>
+                <ul class="list">
+                    <li>Fetching data from an API</li>
+                    <li>Setting up a subscription or timer</li>
+                    <li>Manually changing the DOM</li>
+                    <li>Reading from localStorage</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">effects.jsx</div>
+                <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> useEffect <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react'</span><span class="tok-pun">;</span>
+
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-com">// side effect code here</span>
+  document<span class="tok-pun">.</span>title <span class="tok-op">=</span> <span class="tok-str">`Count: ${</span>count<span class="tok-str">}`</span><span class="tok-pun">;</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">effects.jsx</div><div class="spacer"></div><div class="seg right">05 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · DEPENDENCY ARRAY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Player.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>dependency-array</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the second argument</div>
+        <h2 class="title reveal" style="font-size:58px;"><code style="font-family:inherit;">useEffect</code> — Dependency <span class="hl">Array</span></h2>
+        <div class="filemark reveal">audio-player/src/components/Player.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">Player.jsx</div>
+            <pre><span class="tok-com">// 1. No dependency array → runs after EVERY render</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'every render'</span><span class="tok-pun">); });</span>
+
+<span class="tok-com">// 2. Empty array → runs ONCE after mount</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'mount only'</span><span class="tok-pun">); }, []);</span>
+
+<span class="tok-com">// 3. With dependencies → runs when dependencies change</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'count changed:'</span><span class="tok-pun">,</span> count<span class="tok-pun">); }, [</span>count<span class="tok-pun">]);</span></pre>
+        </div>
+        <table class="comp-table reveal" style="margin-top:16px;">
+            <thead><tr><th>Pattern</th><th>Runs when</th><th>Class equivalent</th></tr></thead>
+            <tbody>
+                <tr><td>No deps</td><td>Every render</td><td>componentDidMount + componentDidUpdate</td></tr>
+                <tr><td><code>[]</code></td><td>Mount only</td><td>componentDidMount</td></tr>
+                <tr><td><code>[a, b]</code></td><td>a or b changes</td><td>componentDidUpdate with check</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Player.jsx</div><div class="spacer"></div><div class="seg right">06 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · CLEANUP FUNCTION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">timer.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>cleanup-function</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">undoing what the effect did</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useEffect</code> — Cleanup <span class="hl">Function</span></h2>
+        <p class="lead-in reveal">The cleanup function runs <strong style="color:var(--orange);">before</strong> the next effect and <strong style="color:var(--orange);">on unmount</strong>:</p>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">timer.jsx</div>
+                <pre><span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-kw">const</span> timer <span class="tok-op">=</span> <span class="tok-fn">setInterval</span><span class="tok-pun">(() =&gt; {</span>
+    <span class="tok-fn">setSeconds</span><span class="tok-pun">(</span>s <span class="tok-op">=&gt;</span> s <span class="tok-op">+</span> <span class="tok-num">1</span><span class="tok-pun">);</span>
+  <span class="tok-pun">},</span> <span class="tok-num">1000</span><span class="tok-pun">);</span>
+
+  <span class="tok-com">// Cleanup: runs on unmount or before re-running this effect</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">() =&gt;</span> <span class="tok-fn">clearInterval</span><span class="tok-pun">(</span>timer<span class="tok-pun">);</span>
+<span class="tok-pun">}, []);</span></pre>
+            </div>
+            <div>
+                <p style="font-size:24px;color:var(--fg-dim);margin-bottom:14px;"><strong style="color:var(--cyan);">Common cleanup scenarios:</strong></p>
+                <ul class="list">
+                    <li><code class="icode">clearInterval</code> / <code class="icode">clearTimeout</code></li>
+                    <li>Unsubscribe from WebSocket or event listener</li>
+                    <li>Cancel an in-flight fetch request (<code class="icode">AbortController</code>)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">timer.jsx</div><div class="spacer"></div><div class="seg right">07 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · COMMON PITFALLS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">pitfalls.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>common-pitfalls</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two mistakes everyone makes</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useEffect</code> — Common <span class="hl">Pitfalls</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ 1. MISSING DEPENDENCY</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">pitfalls.jsx</div>
+                    <pre><span class="tok-com">// Bug: effect reads `count` but doesn't</span>
+<span class="tok-com">// list it as dependency</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  document<span class="tok-pun">.</span>title <span class="tok-op">=</span> <span class="tok-str">`Count: ${</span>count<span class="tok-str">}`</span><span class="tok-pun">;</span>
+<span class="tok-pun">}, []);</span>
+<span class="tok-com">// ESLint warns: "missing dependency"</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label bad">❌ 2. OBJECT/ARRAY AS DEPENDENCY</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">pitfalls.jsx</div>
+                    <pre><span class="tok-com">// Bug: new object reference every render</span>
+<span class="tok-com">// → infinite loop</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span> <span class="tok-fn">fetchData</span><span class="tok-pun">(</span>filters<span class="tok-pun">); }, [</span>filters<span class="tok-pun">]);</span>
+<span class="tok-com">// where filters = { status: 'active' }</span>
+<span class="tok-com">// created in render body</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">Install <b>eslint-plugin-react-hooks</b> — it catches most of these mistakes.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">pitfalls.jsx</div><div class="spacer"></div><div class="seg right">08 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · INFINITE LOOP TRAP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">loop-trap.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>infinite-loop-trap</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the bug that freezes your tab</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useEffect</code> — Infinite <span class="hl">Loop Trap</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ INFINITE LOOP</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">loop-trap.jsx</div>
+                    <pre><span class="tok-kw">function</span> <span class="tok-fn">Bad</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>data<span class="tok-pun">,</span> setData<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">([]);</span>
+
+  <span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+    <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/items'</span><span class="tok-pun">)</span>
+      <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>r <span class="tok-op">=&gt;</span> r<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">())</span>
+      <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>items <span class="tok-op">=&gt;</span> <span class="tok-fn">setData</span><span class="tok-pun">(</span>items<span class="tok-pun">));</span> <span class="tok-com">// re-render</span>
+  <span class="tok-pun">});</span> <span class="tok-com">// ← missing dependency array!</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;{</span>data<span class="tok-pun">.</span>length<span class="tok-pun">}</span> items<span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">✅ FIXED</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">loop-trap.jsx</div>
+                    <pre><span class="tok-com">// Add empty dependency array</span>
+<span class="tok-com">// (fetch once on mount)</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/items'</span><span class="tok-pun">)</span>
+    <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>r <span class="tok-op">=&gt;</span> r<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">())</span>
+    <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>setData<span class="tok-pun">);</span>
+<span class="tok-pun">}, []);</span></pre>
+                </div>
+                <div class="note warn" style="margin-top:20px;">setState inside an effect with no deps → re-render → effect runs again → setState… forever.</div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">loop-trap.jsx</div><div class="spacer"></div><div class="seg right">09 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SECTION DIVIDER: USEREF ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">Player.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture13</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle"><span class="hl">useRef</span> &amp; the DOM</div>
+            <div class="by" style="margin-top:18px;">escaping React when you need imperative control<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 11 · USEREF TWO USE CASES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Player.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>useref-two-use-cases</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a box that survives re-renders</div>
+        <h2 class="title reveal" style="font-size:58px;"><code style="font-family:inherit;">useRef</code> — Two Use <span class="hl">Cases</span></h2>
+        <div class="filemark reveal">audio-player/src/components/Player.jsx</div>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:20px;color:var(--fg-dim);margin-bottom:10px;"><strong style="color:var(--cyan);">1. DOM Access</strong></p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">TextInput.jsx</div>
+                    <pre><span class="tok-kw">function</span> <span class="tok-fn">TextInput</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> inputRef <span class="tok-op">=</span> <span class="tok-fn">useRef</span><span class="tok-pun">(</span><span class="tok-kw">null</span><span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">input</span> <span class="tok-attr">ref</span><span class="tok-op">=</span><span class="tok-pun">{</span>inputRef<span class="tok-pun">}</span> <span class="tok-pun">/&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> inputRef<span class="tok-pun">.</span>current<span class="tok-pun">.</span><span class="tok-fn">focus</span><span class="tok-pun">()}&gt;</span>Focus<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:20px;color:var(--fg-dim);margin-bottom:10px;"><strong style="color:var(--cyan);">2. Mutable Value (no re-render)</strong></p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">renderCount.jsx</div>
+                    <pre><span class="tok-kw">const</span> renderCount <span class="tok-op">=</span> <span class="tok-fn">useRef</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">);</span>
+<span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span> renderCount<span class="tok-pun">.</span>current <span class="tok-op">+=</span> <span class="tok-num">1</span><span class="tok-pun">; });</span>
+<span class="tok-com">// renderCount.current updates</span>
+<span class="tok-com">// without triggering re-render</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:14px;"><b>Live demo:</b> <code class="icode">audioRef.current.play()</code> / <code class="icode">.pause()</code> / <code class="icode">.currentTime = ...</code> in <code class="icode">Player.jsx</code>. The <code class="icode">&lt;audio&gt;</code> element is a native imperative API — React state alone can't call methods on it, so a ref is the only way in.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Player.jsx</div><div class="spacer"></div><div class="seg right">11 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · REFS VS STATE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture13 / <b>refs-vs-state</b></div>
+    </div>
+    <div class="canvas" style="padding:50px 76px 34px;">
+        <div class="kicker reveal">choosing the right box</div>
+        <h2 class="title reveal" style="font-size:58px;margin-bottom:20px;">Refs <span class="hl">vs.</span> State</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th></th><th><code>useRef</code></th><th><code>useState</code></th></tr></thead>
+            <tbody>
+                <tr><td>Returns</td><td><code>{ current: value }</code></td><td><code>[value, setValue]</code></td></tr>
+                <tr><td>Triggers re-render?</td><td><strong style="color:var(--red);">No</strong></td><td><strong style="color:var(--green);">Yes</strong></td></tr>
+                <tr><td>Mutable?</td><td>Yes (directly)</td><td>No (via setter)</td></tr>
+                <tr><td>Use for</td><td>DOM refs, timers, previous values</td><td>UI data that affects rendering</td></tr>
+            </tbody>
+        </table>
+        <div class="reveal" style="flex:1;min-height:0;margin-top:22px;">
+        <svg viewBox="0 0 1600 260" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rv-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7aa2f7"/></marker>
+            <marker id="rv-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#ff9e64"/></marker>
+          </defs>
+          <rect x="20" y="95" width="220" height="70" rx="10" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="130" y="136" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#c0caf5">Event happens</text>
+
+          <path d="M240,115 L470,70" stroke="#7aa2f7" stroke-width="2.5" fill="none" marker-end="url(#rv-a)"/>
+          <text x="355" y="70" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#7aa2f7">setState()</text>
+          <rect x="480" y="35" width="230" height="65" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="595" y="72" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7aa2f7">React re-renders</text>
+
+          <path d="M710,67 L950,67" stroke="#7aa2f7" stroke-width="2.5" fill="none" marker-end="url(#rv-a)"/>
+          <rect x="960" y="35" width="230" height="65" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="1075" y="72" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#9ece6a">UI updates on screen</text>
+
+          <path d="M240,145 L470,190" stroke="#ff9e64" stroke-width="2.5" stroke-dasharray="7 5" fill="none" marker-end="url(#rv-b)"/>
+          <text x="355" y="215" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#ff9e64">ref.current = x</text>
+          <rect x="480" y="160" width="230" height="65" rx="10" fill="#1f2335" stroke="#ff9e64" stroke-width="2" stroke-dasharray="5 4"/>
+          <text x="595" y="197" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#ff9e64">DOM node updated</text>
+
+          <text x="1075" y="197" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">NO re-render</text>
+          <text x="1075" y="220" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">component function does not run again</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:6px;"><b>Rule:</b> if the value affects what's displayed on screen → use state. Otherwise → use ref.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">12 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · SECTION DIVIDER: FORMS & DATA FETCHING ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">App.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture13</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Forms <span class="hl">&amp; Data Fetching</span></div>
+            <div class="by" style="margin-top:18px;">controlled inputs, loading states, and cancellation<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 14 · CONTROLLED COMPONENTS & FORMS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">LoginForm.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>controlled-components</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">React state as the single source of truth</div>
+        <h2 class="title reveal" style="font-size:58px;">Controlled Components <span class="hl">&amp; Forms</span></h2>
+        <div class="filemark reveal">audio-player/src/components/Player.jsx (seek bar, volume slider)</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">LoginForm.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">LoginForm</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>email<span class="tok-pun">,</span> setEmail<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-str">''</span><span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>password<span class="tok-pun">,</span> setPassword<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-str">''</span><span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> handleSubmit <span class="tok-op">=</span> <span class="tok-pun">(</span>e<span class="tok-pun">) =&gt; {</span>
+    e<span class="tok-pun">.</span><span class="tok-fn">preventDefault</span><span class="tok-pun">();</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Login:'</span><span class="tok-pun">, {</span> email<span class="tok-pun">,</span> password <span class="tok-pun">});</span>
+  <span class="tok-pun">};</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">(</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">form</span> <span class="tok-attr">onSubmit</span><span class="tok-op">=</span><span class="tok-pun">{</span>handleSubmit<span class="tok-pun">}&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">input</span> <span class="tok-attr">type</span><span class="tok-op">=</span><span class="tok-str">"email"</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-pun">{</span>email<span class="tok-pun">}</span> <span class="tok-attr">onChange</span><span class="tok-op">=</span><span class="tok-pun">{(</span>e<span class="tok-pun">) =&gt;</span> <span class="tok-fn">setEmail</span><span class="tok-pun">(</span>e<span class="tok-pun">.</span>target<span class="tok-pun">.</span>value<span class="tok-pun">)} /&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">input</span> <span class="tok-attr">type</span><span class="tok-op">=</span><span class="tok-str">"password"</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-pun">{</span>password<span class="tok-pun">}</span> <span class="tok-attr">onChange</span><span class="tok-op">=</span><span class="tok-pun">{(</span>e<span class="tok-pun">) =&gt;</span> <span class="tok-fn">setPassword</span><span class="tok-pun">(</span>e<span class="tok-pun">.</span>target<span class="tok-pun">.</span>value<span class="tok-pun">)} /&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">type</span><span class="tok-op">=</span><span class="tok-str">"submit"</span><span class="tok-pun">&gt;</span>Login<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-tag">form</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:10px;"><b>Controlled component:</b> React state is the "single source of truth" for the input value.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">LoginForm.jsx</div><div class="spacer"></div><div class="seg right">14 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · DATA FETCHING PATTERN ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">UserList.jsx</div>
+        <div class="breadcrumb">lecture13 / <b>data-fetching-pattern</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">loading → data → error</div>
+        <h2 class="title reveal" style="font-size:58px;">Data Fetching <span class="hl">Pattern</span></h2>
+        <div class="filemark reveal">audio-player/src/App.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">UserList.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">UserList</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>users<span class="tok-pun">,</span> setUsers<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">([]);</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>loading<span class="tok-pun">,</span> setLoading<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-kw">true</span><span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>error<span class="tok-pun">,</span> setError<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-kw">null</span><span class="tok-pun">);</span>
+  <span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+    <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">)</span>
+      <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>res <span class="tok-op">=&gt;</span> <span class="tok-pun">{</span> <span class="tok-kw">if</span> <span class="tok-pun">(!</span>res<span class="tok-pun">.</span>ok<span class="tok-pun">)</span> <span class="tok-kw">throw new</span> <span class="tok-cls">Error</span><span class="tok-pun">(</span><span class="tok-str">`HTTP ${</span>res<span class="tok-pun">.</span>status<span class="tok-str">}`</span><span class="tok-pun">);</span> <span class="tok-kw">return</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">(); })</span>
+      <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>data <span class="tok-op">=&gt;</span> <span class="tok-pun">{</span> <span class="tok-fn">setUsers</span><span class="tok-pun">(</span>data<span class="tok-pun">);</span> <span class="tok-fn">setLoading</span><span class="tok-pun">(</span><span class="tok-kw">false</span><span class="tok-pun">); })</span>
+      <span class="tok-pun">.</span><span class="tok-fn">catch</span><span class="tok-pun">(</span>err <span class="tok-op">=&gt;</span> <span class="tok-pun">{</span> <span class="tok-fn">setError</span><span class="tok-pun">(</span>err<span class="tok-pun">.</span>message<span class="tok-pun">);</span> <span class="tok-fn">setLoading</span><span class="tok-pun">(</span><span class="tok-kw">false</span><span class="tok-pun">); });</span>
+  <span class="tok-pun">}, []);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>loading<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Loading...<span class="tok-pun">&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>error<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Error: <span class="tok-pun">{</span>error<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;{</span>users<span class="tok-pun">.</span><span class="tok-fn">map</span><span class="tok-pun">(</span>u <span class="tok-op">=&gt;</span> <span class="tok-pun">&lt;</span><span class="tok-tag">li</span> <span class="tok-attr">key</span><span class="tok-op">=</span><span class="tok-pun">{</span>u<span class="tok-pun">.</span>id<span class="tok-pun">}&gt;{</span>u<span class="tok-pun">.</span>name<span class="tok-pun">}&lt;/</span><span class="tok-tag">li</span><span class="tok-pun">&gt;)}&lt;/</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:10px;">This loading/error/data pattern appears in almost every React app. <b>Master it.</b></div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">UserList.jsx</div><div class="spacer"></div><div class="seg right">15 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · ABORTCONTROLLER CANCELLATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">fetchTracks.js</div>
+        <div class="breadcrumb">lecture13 / <b>abortcontroller-cancellation</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">cleaning up in-flight requests</div>
+        <h2 class="title reveal" style="font-size:52px;">Data Fetching: Cancellation with <span class="hl">AbortController</span></h2>
+        <div class="filemark reveal">audio-player/src/App.jsx, audio-player/src/api/fetchTracks.js</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">fetchTracks.js</div>
+            <pre><span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-kw">const</span> controller <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">AbortController</span><span class="tok-pun">();</span>
+
+  <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">, {</span> signal<span class="tok-pun">:</span> controller<span class="tok-pun">.</span>signal <span class="tok-pun">})</span>
+    <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>res <span class="tok-op">=&gt;</span> res<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">())</span>
+    <span class="tok-pun">.</span><span class="tok-fn">then</span><span class="tok-pun">(</span>setUsers<span class="tok-pun">)</span>
+    <span class="tok-pun">.</span><span class="tok-fn">catch</span><span class="tok-pun">(</span>err <span class="tok-op">=&gt;</span> <span class="tok-pun">{</span>
+      <span class="tok-kw">if</span> <span class="tok-pun">(</span>err<span class="tok-pun">.</span>name <span class="tok-op">!==</span> <span class="tok-str">'AbortError'</span><span class="tok-pun">)</span> <span class="tok-fn">setError</span><span class="tok-pun">(</span>err<span class="tok-pun">.</span>message<span class="tok-pun">);</span>
+    <span class="tok-pun">});</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">() =&gt;</span> controller<span class="tok-pun">.</span><span class="tok-fn">abort</span><span class="tok-pun">();</span>  <span class="tok-com">// Cancel fetch on unmount</span>
+<span class="tok-pun">}, []);</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">Without cancellation, unmounted components can still try to <code class="icode">setState</code>, causing React warnings and potential memory leaks.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">fetchTracks.js</div><div class="spacer"></div><div class="seg right">16 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · LIFECYCLE: CLASS ↔ HOOKS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mental-model.md</div>
+        <div class="breadcrumb">lecture13 / <b>class-hooks-mental-model</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">for students who read class component code</div>
+        <h2 class="title reveal" style="font-size:54px;">Lifecycle: Class <span class="hl">↔ Hooks</span> Mental Model</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Class Lifecycle</th><th>Hooks Equivalent</th></tr></thead>
+            <tbody>
+                <tr><td><code>constructor</code></td><td><code>useState(initialValue)</code></td></tr>
+                <tr><td><code>componentDidMount</code></td><td><code>useEffect(() =&gt; {}, [])</code></td></tr>
+                <tr><td><code>componentDidUpdate</code></td><td><code>useEffect(() =&gt; {}, [deps])</code></td></tr>
+                <tr><td><code>componentWillUnmount</code></td><td><code>useEffect(() =&gt; { return cleanup }, [])</code></td></tr>
+                <tr><td><code>shouldComponentUpdate</code></td><td><code>React.memo()</code> (covered in L15)</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mental-model.md</div><div class="spacer"></div><div class="seg right">17 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture13</div>
+        <div class="breadcrumb">lecture13 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>⚡ useEffect</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Dependency array: none / <code>[]</code> / <code>[deps]</code></li>
+                    <li style="font-size:20px;">Cleanup function on unmount / re-run</li>
+                </ul>
+            </div>
+            <div class="col-card accent-red">
+                <h3>🐛 Common Pitfalls</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Missing deps, object references</li>
+                    <li style="font-size:20px;">Infinite loops from unguarded setState</li>
+                </ul>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>📌 useRef</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">DOM access, mutable values</li>
+                    <li style="font-size:20px;">No re-render on change</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>🌐 Forms &amp; Fetching</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">Controlled components, form handling</li>
+                    <li style="font-size:20px;">Loading → data → error, AbortController</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:20px;">🎧 <b>Live demo code:</b> <code class="icode">sample_code/lecture13/audio-player</code> (App A, v0.1). Continues in Lecture 14.</div>
+        <div class="note reveal" style="margin-top:14px;">⏭️ <b>Next lecture:</b> Custom Hooks &amp; Component Composition</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture13</div><div class="spacer"></div><div class="seg right">18 / 18</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture13-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture13.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>
