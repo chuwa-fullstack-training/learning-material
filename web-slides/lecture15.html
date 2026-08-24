@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 15 — React Router + Performance Optimization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–14) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🔥";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 15 ADDITIONS: ownership-phase banner + StreakUp mock === */
+.phase-banner { display:flex;align-items:center;gap:22px;flex:1;min-height:0;justify-content:center; }
+.phase-chip { display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 30px;border-radius:16px;background:var(--panel);border:2px solid var(--border-soft);opacity:0.55;transform:scale(0.96); }
+.phase-chip .pc-icon { font-size:36px; }
+.phase-chip .pc-label { font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--fg-dim);text-align:center; }
+.phase-chip.done { opacity:0.7;border-color:var(--green); }
+.phase-chip.done .pc-label { color:var(--green); }
+.phase-chip.now { opacity:1;transform:scale(1.06);border-color:var(--orange);box-shadow:0 0 46px rgba(255,158,100,0.28); }
+.phase-chip.now .pc-label { color:var(--orange); }
+.phase-arrow { font-size:30px;color:var(--fg-faint); }
+
+.streak-mock { display:flex;flex-direction:column;gap:14px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px 30px;box-shadow:0 20px 50px rgba(0,0,0,0.3); }
+.streak-mock .sm-title { font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--fg);margin-bottom:4px; }
+.streak-row { display:flex;align-items:center;gap:14px;background:var(--panel-2);border-radius:10px;padding:12px 16px; }
+.streak-row .sr-name { flex:1;font-size:17px;color:var(--fg); }
+.streak-row .sr-cat { font-family:var(--font-mono);font-size:12px;color:var(--fg-faint);background:var(--win-bar);padding:3px 9px;border-radius:6px; }
+.streak-row .sr-fire { font-family:var(--font-mono);font-size:14px;color:var(--orange);font-weight:700; }
+.streak-row .sr-btn { font-family:var(--font-mono);font-size:12px;background:var(--green);color:#0b0d17;padding:6px 12px;border-radius:6px;font-weight:700; }
+.streak-row .sr-btn.done { background:var(--panel);color:var(--fg-faint);border:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">App.jsx <span class="dirty">— react-router-dom</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ npm install react-router-dom</span></div>
+            <div class="term-out">› Loading: routes · protected routes · memoization</div>
+            <div class="section-num">Lecture 15</div>
+            <h1>React Router <span class="hl">+ Performance</span></h1>
+            <div class="by">// Routes · Outlet · lazy · memo<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note ok reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟢 <b>Use AI freely.</b> Route config and performance optimization are pattern-based code. Focus on understanding Protected Routes, when to code-split, and when to memoize — the actual code can be AI-generated.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · WELCOME TO THE OWNERSHIP PHASE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">roadmap.md</div>
+        <div class="breadcrumb">lecture15 / <b>ownership-phase-begins</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a shift in how you work</div>
+        <h2 class="title reveal">Welcome to the <span class="hl">Ownership Phase</span></h2>
+        <div class="phase-banner reveal">
+            <div class="phase-chip done"><div class="pc-icon">⚛️</div><div class="pc-label">L12–L14<br>React Fundamentals</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip now"><div class="pc-icon">🧭</div><div class="pc-label">L15–L17<br>Ownership Phase</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip"><div class="pc-icon">🚀</div><div class="pc-label">L18+<br>GraphQL · SSR · Real-Time</div></div>
+        </div>
+        <ul class="list reveal" style="margin-top:24px;">
+            <li>Use AI freely to accelerate development</li>
+            <li>You must be able to <strong style="color:var(--cyan);">explain</strong> every line of AI-generated code</li>
+            <li>Submit an <strong style="color:var(--orange);">AI Usage Log</strong> with your homework</li>
+            <li>Focus shifts from writing code to <strong style="color:var(--cyan);">reviewing and integrating</strong> AI output</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">roadmap.md</div><div class="spacer"></div><div class="seg right">02 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">lecture15 / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li>SPA routing principles</li>
+            <li>React Router v6 (<code class="icode">Routes</code>, <code class="icode">Link</code>, <code class="icode">useNavigate</code>, <code class="icode">useParams</code>)</li>
+            <li>Nested routes and <code class="icode">Outlet</code></li>
+            <li><code class="icode">useSearchParams</code> (URL state management)</li>
+            <li>Protected Routes (connecting L11 JWT auth)</li>
+            <li><code class="icode">React.lazy</code> + <code class="icode">Suspense</code> (route-based code splitting)</li>
+            <li><code class="icode">React.memo</code> / <code class="icode">useMemo</code> / <code class="icode">useCallback</code></li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;"><b>Live demo — App B, v0.1:</b> a new app starts today — <b>StreakUp</b>, a multi-page habit tracker. Code: <code class="icode">sample_code/lecture15/habit-tracker</code>. It continues into Lecture 16 (state management) and Lecture 17 (fullstack + TypeScript + testing).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">03 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · MEET STREAKUP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">habit-tracker</div>
+        <div class="breadcrumb">lecture15 / <b>meet-streakup</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the second through-line app begins</div>
+        <h2 class="title reveal">Meet <span class="hl">StreakUp</span></h2>
+        <div class="split eq reveal">
+            <div class="streak-mock">
+                <div class="sm-title">🔥 My Habits</div>
+                <div class="streak-row"><span class="sr-name">Morning Run</span><span class="sr-cat">health</span><span class="sr-fire">🔥 12</span><span class="sr-btn done">Checked in</span></div>
+                <div class="streak-row"><span class="sr-name">Read 20 pages</span><span class="sr-cat">learning</span><span class="sr-fire">🔥 5</span><span class="sr-btn">Check in</span></div>
+                <div class="streak-row"><span class="sr-name">No sugar</span><span class="sr-cat">health</span><span class="sr-fire">🔥 3</span><span class="sr-btn">Check in</span></div>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>A multi-page habit tracker — real routing, real auth flow</li>
+                    <li>Code: <code class="icode">sample_code/lecture15/habit-tracker</code></li>
+                    <li>Login → habit list → habit detail → stats, all with real URLs</li>
+                </ul>
+                <div class="phase-banner" style="justify-content:flex-start;margin-top:26px;gap:16px;">
+                    <div class="phase-chip now"><div class="pc-icon">🔥</div><div class="pc-label">L15<br>v0.1 routing + perf</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">🗃️</div><div class="pc-label">L16<br>v0.2 state mgmt</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">🧪</div><div class="pc-label">L17<br>v0.3 fullstack + TS + tests</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:20px;">Every routing and performance concept this lecture is demoed live in this running app — not just isolated snippets.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">habit-tracker</div><div class="spacer"></div><div class="seg right">04 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · SECTION DIVIDER: SPA ROUTING ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">App.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture15</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">SPA <span class="hl">Routing</span></div>
+            <div class="by" style="margin-top:18px;">Routes, params, nested layouts, protected access<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 06 · WHY ROUTING IN A SPA ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">routes.md</div>
+        <div class="breadcrumb">lecture15 / <b>why-routing-in-a-spa</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">bringing back the URL</div>
+        <h2 class="title reveal">Why Routing <span class="hl">in a SPA?</span></h2>
+        <ul class="list reveal">
+            <li>SPA = one HTML file, JavaScript handles all page transitions</li>
+            <li><strong style="color:var(--red);">Without routing:</strong> all content on one URL, no back button, no bookmarks</li>
+            <li><strong style="color:var(--green);">With routing:</strong> different URLs for different pages, browser history works</li>
+        </ul>
+        <div class="codeblock reveal" style="margin-top:16px;">
+            <div class="cb-bar">routes</div>
+            <pre><span class="tok-pun">/</span>              <span class="tok-op">→</span> <span class="tok-com">Home page</span>
+<span class="tok-pun">/users</span>         <span class="tok-op">→</span> <span class="tok-com">User list</span>
+<span class="tok-pun">/users/123</span>     <span class="tok-op">→</span> <span class="tok-com">User detail</span>
+<span class="tok-pun">/login</span>         <span class="tok-op">→</span> <span class="tok-com">Login page</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">routes.md</div><div class="spacer"></div><div class="seg right">06 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · REACT ROUTER V6 SETUP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">App.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>react-router-v6-setup</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three components, one router</div>
+        <h2 class="title reveal">React Router v6 <span class="hl">Setup</span></h2>
+        <div class="filemark reveal">habit-tracker/src/App.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">terminal</div>
+            <pre><span class="tok-fn">npm</span> install react-router-dom</pre>
+        </div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">App.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> BrowserRouter<span class="tok-pun">,</span> Routes<span class="tok-pun">,</span> Route <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-router-dom'</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">App</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-cls">BrowserRouter</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">Home</span> <span class="tok-pun">/&gt;} /&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/users/:id"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">UserDetail</span> <span class="tok-pun">/&gt;} /&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"*"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">NotFound</span> <span class="tok-pun">/&gt;} /&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-cls">BrowserRouter</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">App.jsx</div><div class="spacer"></div><div class="seg right">07 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · NAVIGATION: LINK & USENAVIGATE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Navbar.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>navigation-link-usenavigate</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">declarative vs. programmatic</div>
+        <h2 class="title reveal">Navigation: <code style="font-family:inherit;">Link</code> <span class="hl">&amp; useNavigate</span></h2>
+        <div class="filemark reveal">habit-tracker/src/components/Navbar.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">NavBar.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> Link<span class="tok-pun">,</span> useNavigate <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-router-dom'</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">NavBar</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> navigate <span class="tok-op">=</span> <span class="tok-fn">useNavigate</span><span class="tok-pun">();</span>
+  <span class="tok-kw">const</span> handleLogout <span class="tok-op">=</span> <span class="tok-pun">() =&gt; {</span> <span class="tok-fn">logout</span><span class="tok-pun">();</span> <span class="tok-fn">navigate</span><span class="tok-pun">(</span><span class="tok-str">'/login'</span><span class="tok-pun">);</span> <span class="tok-pun">};</span> <span class="tok-com">// programmatic nav</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">nav</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-cls">Link</span> <span class="tok-attr">to</span><span class="tok-op">=</span><span class="tok-str">"/"</span><span class="tok-pun">&gt;</span>Home<span class="tok-pun">&lt;/</span><span class="tok-cls">Link</span><span class="tok-pun">&gt;</span>  <span class="tok-com">{/* declarative */}</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{</span>handleLogout<span class="tok-pun">}&gt;</span>Logout<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">nav</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:12px;"><code class="icode">Link</code> renders an <code class="icode">&lt;a&gt;</code> tag that doesn't reload the page. Use <code class="icode">useNavigate</code> for programmatic redirects.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Navbar.jsx</div><div class="spacer"></div><div class="seg right">08 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · ROUTE PARAMETERS: USEPARAMS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">UserDetail.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>route-parameters-useparams</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reading the dynamic part of a URL</div>
+        <h2 class="title reveal">Route Parameters: <code style="font-family:inherit;">useParams</code></h2>
+        <div class="filemark reveal">habit-tracker/src/pages/HabitDetailPage.jsx</div>
+        <div class="codeblock reveal">
+            <div class="cb-bar">UserDetail.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> useParams <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-router-dom'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">UserDetail</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> id <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useParams</span><span class="tok-pun">();</span>  <span class="tok-com">// from path="/users/:id"</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> data<span class="tok-pun">:</span> user<span class="tok-pun">,</span> loading <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useFetch</span><span class="tok-pun">(</span><span class="tok-str">`/api/users/${</span>id<span class="tok-str">}`</span><span class="tok-pun">);</span>
+
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>loading<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Loading...<span class="tok-pun">&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;{</span>user<span class="tok-pun">.</span>name<span class="tok-pun">}&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">UserDetail.jsx</div><div class="spacer"></div><div class="seg right">09 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · NESTED ROUTES AND OUTLET ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">route-tree</div>
+        <div class="breadcrumb">lecture15 / <b>nested-routes-and-outlet</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 26px;">
+        <div class="kicker reveal">StreakUp's real route tree</div>
+        <h2 class="title reveal" style="font-size:52px;margin-bottom:10px;">Nested Routes and <span class="hl">Outlet</span></h2>
+        <div class="filemark reveal" style="margin-bottom:6px;">habit-tracker/src/App.jsx, pages/HabitsLayout.jsx</div>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 380" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rt-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#565f89"/></marker>
+            <marker id="rt-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f7768e"/></marker>
+          </defs>
+          <rect x="30" y="160" width="150" height="60" rx="8" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+          <text x="105" y="196" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#c0caf5">/login</text>
+
+          <rect x="30" y="60" width="150" height="50" rx="8" fill="#1f2335" stroke="#565f89" stroke-width="2" stroke-dasharray="4 4"/>
+          <text x="105" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">/ → redirect</text>
+
+          <path d="M180,190 L260,190" stroke="#565f89" stroke-width="2" fill="none" marker-end="url(#rt-a)"/>
+
+          <rect x="270" y="130" width="290" height="120" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2.5"/>
+          <text x="415" y="163" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7aa2f7">/habits</text>
+          <text x="415" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">ProtectedRoute</text>
+          <text x="415" y="203" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">→ HabitsLayout (Navbar + Outlet)</text>
+          <text x="415" y="224" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#7dcfff">via Outlet context</text>
+
+          <path d="M560,175 L640,175" stroke="#7aa2f7" stroke-width="2" fill="none" marker-end="url(#rt-a)"/>
+          <rect x="650" y="145" width="260" height="55" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="780" y="177" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">index → HabitsListPage</text>
+
+          <path d="M560,220 L640,220" stroke="#7aa2f7" stroke-width="2" fill="none" marker-end="url(#rt-a)"/>
+          <rect x="650" y="207" width="260" height="55" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="780" y="240" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">:id → HabitDetailPage</text>
+
+          <rect x="1050" y="130" width="300" height="120" rx="10" fill="#1f2335" stroke="#f7768e" stroke-width="2.5" stroke-dasharray="7 5"/>
+          <text x="1200" y="163" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#f7768e">/stats</text>
+          <text x="1200" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">ProtectedRoute + Suspense</text>
+          <text x="1200" y="203" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">lazy(StatsPage) — SIBLING route</text>
+          <text x="1200" y="224" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#f7768e">can't reach HabitsLayout's Outlet context</text>
+
+          <path d="M910,190 L1045,190" stroke="#f7768e" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#rt-b)"/>
+          <text x="978" y="175" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#f7768e">no shared state</text>
+
+          <text x="415" y="300" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">Outlet renders whichever child route matched, inside HabitsLayout's &lt;main&gt;</text>
+        </svg>
+        </div>
+        <div class="note demo reveal" style="margin-top:2px;"><b>Live demo:</b> <code class="icode">/stats</code> is a sibling route, not nested — that gap is intentional and is exactly what Lecture 16 (Redux) fixes.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">route-tree</div><div class="spacer"></div><div class="seg right">10 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · USESEARCHPARAMS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ProductList.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>usesearchparams</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">state that lives in the URL</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useSearchParams</code> — <span class="hl">URL State</span></h2>
+        <div class="filemark reveal">habit-tracker/src/pages/HabitsListPage.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">ProductList.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> useSearchParams <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-router-dom'</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">ProductList</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>searchParams<span class="tok-pun">,</span> setSearchParams<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useSearchParams</span><span class="tok-pun">();</span>
+  <span class="tok-kw">const</span> page <span class="tok-op">=</span> <span class="tok-cls">Number</span><span class="tok-pun">(</span>searchParams<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'page'</span><span class="tok-pun">))</span> <span class="tok-op">||</span> <span class="tok-num">1</span><span class="tok-pun">;</span>
+  <span class="tok-kw">const</span> sort <span class="tok-op">=</span> searchParams<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'sort'</span><span class="tok-pun">)</span> <span class="tok-op">||</span> <span class="tok-str">'name'</span><span class="tok-pun">;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">select</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-pun">{</span>sort<span class="tok-pun">}</span> <span class="tok-attr">onChange</span><span class="tok-op">=</span><span class="tok-pun">{</span>e <span class="tok-op">=&gt;</span> <span class="tok-fn">setSearchParams</span><span class="tok-pun">({</span> page<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span> sort<span class="tok-pun">:</span> e<span class="tok-pun">.</span>target<span class="tok-pun">.</span>value <span class="tok-pun">})}&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">option</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-str">"name"</span><span class="tok-pun">&gt;</span>Name<span class="tok-pun">&lt;/</span><span class="tok-tag">option</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">option</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-str">"price"</span><span class="tok-pun">&gt;</span>Price<span class="tok-pun">&lt;/</span><span class="tok-tag">option</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">select</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:12px;">URL params are <b>shareable</b> — users can bookmark <code class="icode">/products?page=2&amp;sort=price</code> and get the same view.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ProductList.jsx</div><div class="spacer"></div><div class="seg right">11 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · PROTECTED ROUTES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ProtectedRoute.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>protected-routes</b></div>
+    </div>
+    <div class="canvas" style="padding:46px 76px 28px;">
+        <div class="kicker reveal">connecting L11 JWT auth with routing</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:12px;">Protected <span class="hl">Routes</span></h2>
+        <div class="filemark reveal">habit-tracker/src/auth/ProtectedRoute.jsx</div>
+        <div class="split reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">ProtectedRoute.jsx</div>
+                <pre><span class="tok-kw">function</span> <span class="tok-fn">ProtectedRoute</span><span class="tok-pun">({</span> children <span class="tok-pun">}) {</span>
+  <span class="tok-kw">const</span> token <span class="tok-op">=</span> localStorage<span class="tok-pun">.</span><span class="tok-fn">getItem</span><span class="tok-pun">(</span><span class="tok-str">'token'</span><span class="tok-pun">);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>token<span class="tok-pun">) {</span>
+    <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-cls">Navigate</span> <span class="tok-attr">to</span><span class="tok-op">=</span><span class="tok-str">"/login"</span> <span class="tok-attr">replace</span> <span class="tok-pun">/&gt;;</span>
+  <span class="tok-pun">}</span>
+  <span class="tok-kw">return</span> children<span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+<span class="tok-com">// Usage</span>
+<span class="tok-pun">&lt;</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/login"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">Login</span> <span class="tok-pun">/&gt;} /&gt;</span>
+  <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/dashboard"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{</span>
+    <span class="tok-pun">&lt;</span><span class="tok-cls">ProtectedRoute</span><span class="tok-pun">&gt;&lt;</span><span class="tok-cls">Dashboard</span> <span class="tok-pun">/&gt;&lt;/</span><span class="tok-cls">ProtectedRoute</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">} /&gt;</span>
+<span class="tok-pun">&lt;/</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span></pre>
+            </div>
+            <div>
+                <svg viewBox="0 0 620 340" width="100%" height="340" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <marker id="pr-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+                  </defs>
+                  <rect x="10" y="10" width="260" height="55" rx="8" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+                  <text x="140" y="43" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">visit /habits/h1 (no token)</text>
+
+                  <path d="M140,65 L140,95" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#pr-a)"/>
+                  <rect x="10" y="100" width="260" height="60" rx="8" fill="#1f2335" stroke="#f7768e" stroke-width="2.5"/>
+                  <text x="140" y="128" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#f7768e">redirect → /login</text>
+                  <text x="140" y="148" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#9aa5ce">state.from = /habits/h1</text>
+
+                  <path d="M140,160 L140,190" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#pr-a)"/>
+                  <rect x="10" y="195" width="260" height="50" rx="8" fill="#1f2335" stroke="#e0af68" stroke-width="2"/>
+                  <text x="140" y="225" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#e0af68">user logs in</text>
+
+                  <path d="M140,245 L140,275" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#pr-a)"/>
+                  <rect x="10" y="280" width="260" height="55" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+                  <text x="140" y="308" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">navigate(state.from)</text>
+                  <text x="140" y="326" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#9aa5ce">back to /habits/h1</text>
+                </svg>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:8px;"><b>Live demo:</b> App B's <code class="icode">ProtectedRoute</code> remembers <code class="icode">location.state.from</code> and redirects back after login — try visiting <code class="icode">/habits/h1</code> while logged out. The token is still a <b>mock</b> string (no real backend until L17) — the redirect-back mechanics are real, the auth itself isn't yet.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ProtectedRoute.jsx</div><div class="spacer"></div><div class="seg right">12 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · SECTION DIVIDER: PERFORMANCE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">HabitListItem.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture15</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Performance <span class="hl">Optimization</span></div>
+            <div class="by" style="margin-top:18px;">code splitting, memoization, and measuring first<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 14 · CODE SPLITTING WITH REACT.LAZY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">App.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>code-splitting-react-lazy</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">only download what you visit</div>
+        <h2 class="title reveal">Code Splitting with <code style="font-family:inherit;">React.lazy</code></h2>
+        <div class="filemark reveal">habit-tracker/src/App.jsx</div>
+        <p class="lead-in reveal" style="margin-bottom:12px;">Without code splitting, <strong style="color:var(--red);">all JavaScript loads upfront</strong>. With lazy loading, routes load <strong style="color:var(--green);">on demand</strong>:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">App.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> lazy<span class="tok-pun">,</span> Suspense <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> Dashboard <span class="tok-op">=</span> <span class="tok-fn">lazy</span><span class="tok-pun">(() =&gt;</span> <span class="tok-fn">import</span><span class="tok-pun">(</span><span class="tok-str">'./pages/Dashboard'</span><span class="tok-pun">));</span>
+<span class="tok-kw">function</span> <span class="tok-fn">App</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-cls">Suspense</span> <span class="tok-attr">fallback</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Loading...<span class="tok-pun">&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">}&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">Home</span> <span class="tok-pun">/&gt;} /&gt;</span>
+      <span class="tok-pun">&lt;</span><span class="tok-cls">Route</span> <span class="tok-attr">path</span><span class="tok-op">=</span><span class="tok-str">"/dashboard"</span> <span class="tok-attr">element</span><span class="tok-op">=</span><span class="tok-pun">{&lt;</span><span class="tok-cls">Dashboard</span> <span class="tok-pun">/&gt;} /&gt;</span>
+    <span class="tok-pun">&lt;/</span><span class="tok-cls">Routes</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-cls">Suspense</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;"><b>Live demo:</b> <code class="icode">StatsPage</code> is loaded via <code class="icode">lazy(() =&gt; import('./pages/StatsPage'))</code>. Run <code class="icode">npm run build</code> and check the output — it ships as its own chunk, separate from the main bundle.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">App.jsx</div><div class="spacer"></div><div class="seg right">14 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · REACT.MEMO ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">HabitListItem.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>react-memo</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">skip unnecessary re-renders</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">React.memo</code></h2>
+        <div class="filemark reveal">habit-tracker/src/components/HabitListItem.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">ExpensiveList.jsx</div>
+            <pre><span class="tok-kw">const</span> ExpensiveList <span class="tok-op">=</span> <span class="tok-cls">React</span><span class="tok-pun">.</span><span class="tok-fn">memo</span><span class="tok-pun">(</span><span class="tok-kw">function</span> <span class="tok-fn">ExpensiveList</span><span class="tok-pun">({</span> items <span class="tok-pun">}) {</span>
+  console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'Rendering ExpensiveList'</span><span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;{</span>items<span class="tok-pun">.</span><span class="tok-fn">map</span><span class="tok-pun">(</span>i <span class="tok-op">=&gt;</span> <span class="tok-pun">&lt;</span><span class="tok-tag">li</span> <span class="tok-attr">key</span><span class="tok-op">=</span><span class="tok-pun">{</span>i<span class="tok-pun">.</span>id<span class="tok-pun">}&gt;{</span>i<span class="tok-pun">.</span>name<span class="tok-pun">}&lt;/</span><span class="tok-tag">li</span><span class="tok-pun">&gt;)}&lt;/</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">});</span>
+<span class="tok-kw">function</span> <span class="tok-fn">Parent</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>count<span class="tok-pun">,</span> setCount<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">);</span> <span class="tok-kw">const</span> items <span class="tok-op">=</span> <span class="tok-pun">[{</span> id<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span> name<span class="tok-pun">:</span> <span class="tok-str">'A'</span> <span class="tok-pun">}, {</span> id<span class="tok-pun">:</span> <span class="tok-num">2</span><span class="tok-pun">,</span> name<span class="tok-pun">:</span> <span class="tok-str">'B'</span> <span class="tok-pun">}];</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">setCount</span><span class="tok-pun">(</span>c <span class="tok-op">=&gt;</span> c <span class="tok-op">+</span> <span class="tok-num">1</span><span class="tok-pun">)}&gt;</span>Count: <span class="tok-pun">{</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span> <span class="tok-pun">&lt;</span><span class="tok-cls">ExpensiveList</span> <span class="tok-attr">items</span><span class="tok-op">=</span><span class="tok-pun">{</span>items<span class="tok-pun">} /&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span> <span class="tok-com">{/* ExpensiveList won't re-render on count change */}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;"><code class="icode">React.memo</code> does a <b>shallow comparison</b> of props. <b>Live demo:</b> click "Check in" on one habit — only that habit's render log fires. This only works because <code class="icode">handleCheckIn</code> updates state immutably, keeping unaffected habit objects at the same reference — memo compares by reference, not value.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">HabitListItem.jsx</div><div class="spacer"></div><div class="seg right">15 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · USEMEMO AND USECALLBACK ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">StatsPage.jsx</div>
+        <div class="breadcrumb">lecture15 / <b>usememo-usecallback</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">memoizing values vs. functions</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useMemo</code> and <code style="font-family:inherit;">useCallback</code></h2>
+        <div class="filemark reveal">habit-tracker/src/pages/StatsPage.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">Memo.jsx / Callback.jsx</div>
+            <pre><span class="tok-com">// useMemo: memoize an expensive COMPUTED VALUE</span>
+<span class="tok-kw">const</span> sortedItems <span class="tok-op">=</span> <span class="tok-fn">useMemo</span><span class="tok-pun">(() =&gt;</span>
+  items<span class="tok-pun">.</span><span class="tok-fn">slice</span><span class="tok-pun">().</span><span class="tok-fn">sort</span><span class="tok-pun">((</span>a<span class="tok-pun">,</span> b<span class="tok-pun">) =&gt;</span> a<span class="tok-pun">.</span>name<span class="tok-pun">.</span><span class="tok-fn">localeCompare</span><span class="tok-pun">(</span>b<span class="tok-pun">.</span>name<span class="tok-pun">)), [</span>items<span class="tok-pun">]);</span>
+<span class="tok-com">// useCallback: memoize a FUNCTION REFERENCE</span>
+<span class="tok-kw">const</span> handleClick <span class="tok-op">=</span> <span class="tok-fn">useCallback</span><span class="tok-pun">((</span>id<span class="tok-pun">) =&gt;</span> <span class="tok-fn">setSelected</span><span class="tok-pun">(</span>id<span class="tok-pun">), []);</span></pre>
+        </div>
+        <table class="comp-table reveal" style="margin-top:14px;">
+            <thead><tr><th>Hook</th><th>Memoizes</th><th>Use when</th></tr></thead>
+            <tbody>
+                <tr><td><code>useMemo</code></td><td>A computed value</td><td>Expensive calculations</td></tr>
+                <tr><td><code>useCallback</code></td><td>A function reference</td><td>Passing callbacks to <code>React.memo</code> children</td></tr>
+            </tbody>
+        </table>
+        <div class="note demo reveal" style="margin-top:12px;"><b>Live demo:</b> <code class="icode">StatsPage</code>'s streak aggregation is wrapped in <code class="icode">useMemo(..., [habits])</code>. Click "Show raw data" and watch the console — <code class="icode">Recomputing stats...</code> should <b>not</b> log again.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">StatsPage.jsx</div><div class="spacer"></div><div class="seg right">16 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · WHEN TO OPTIMIZE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">optimize.md</div>
+        <div class="breadcrumb">lecture15 / <b>when-to-optimize</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">measure, don't guess</div>
+        <h2 class="title reveal">When to Optimize <span class="hl">(and When Not To)</span></h2>
+        <p class="lead-in reveal"><strong style="color:var(--red);">Don't optimize prematurely.</strong> Use these tools only when you have:</p>
+        <ul class="list reveal">
+            <li><strong>1.</strong> Measured a problem — use React DevTools Profiler</li>
+            <li><strong>2.</strong> Identified the bottleneck — which component re-renders too often?</li>
+            <li><strong>3.</strong> Applied the right fix — memo, useMemo, or useCallback</li>
+        </ul>
+        <div class="compare reveal" style="margin-top:16px;flex:none;">
+            <div>
+                <div class="compare-label bad">❌ PREMATURE</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">optimize.md</div>
+                    <pre><span class="tok-com">"I'll wrap everything in React.memo just in case"</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">✅ EVIDENCE-BASED</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">optimize.md</div>
+                    <pre><span class="tok-com">"The list re-renders on every keystroke —</span>
+<span class="tok-com">memo + useCallback fixes it"</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note caution reveal" style="margin-top:16px;">Performance optimization adds complexity. Only add it when you have <b>evidence</b> of a problem.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">optimize.md</div><div class="spacer"></div><div class="seg right">17 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture15</div>
+        <div class="breadcrumb">lecture15 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="cols reveal" style="flex:none;">
+            <div class="col-card accent-blue">
+                <h3>🧭 React Router v6</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code>Routes</code>, <code>Link</code>, <code>useNavigate</code>, <code>useParams</code></li>
+                    <li style="font-size:20px;">Nested routes with <code>Outlet</code>, <code>useSearchParams</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-red">
+                <h3>🔐 Protected Routes</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;">JWT auth + routing integration</li>
+                    <li style="font-size:20px;">Redirect-back via <code>location.state.from</code></li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>📦 Code Splitting</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code>React.lazy</code> + <code>Suspense</code></li>
+                    <li style="font-size:20px;">Route-based chunks, loaded on demand</li>
+                </ul>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>⚡ Memoization</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;padding-top:6px;">
+                    <li style="font-size:20px;"><code>React.memo</code>, <code>useMemo</code>, <code>useCallback</code></li>
+                    <li style="font-size:20px;">Measure first, then apply targeted fixes</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:16px;">🔥 <b>Live demo:</b> <code class="icode">sample_code/lecture15/habit-tracker</code> (App B, v0.1). The gap is intentional — check in a habit on <code class="icode">/habits</code>, then visit <code class="icode">/stats</code>: the numbers won't update. That's next lecture's motivation. <b>Next lecture:</b> State Management (Redux → RTK → Context)</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture15</div><div class="spacer"></div><div class="seg right">18 / 18</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture15-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture15.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

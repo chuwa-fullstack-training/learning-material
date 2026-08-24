@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 16 — State Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–15) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🔥";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">habitsSlice.js <span class="dirty">— new</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ npm install @reduxjs/toolkit react-redux</span></div>
+            <div class="term-out">› Loading: Redux · RTK · Context · useReducer</div>
+            <div class="section-num">Lecture 16</div>
+            <h1>State <span class="hl">Management</span></h1>
+            <div class="by">// Action → Dispatch → Reducer → Store<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Data flow must be understood, code can be AI-assisted.</b> You must be able to draw Action → Dispatch → Reducer → Store on a whiteboard. RTK code can reference AI, but understand what it simplifies. Context vs Redux selection must be your own judgment.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · THE PROBLEM: PROPS DRILLING ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">StatsPage.jsx</div>
+        <div class="breadcrumb">lecture16 / <b>the-problem-props-drilling</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 26px;">
+        <div class="kicker reveal">the pain that motivates everything today</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:8px;">The Problem: <span class="hl">Props Drilling</span></h2>
+        <div class="filemark reveal">habit-tracker/src/pages/StatsPage.jsx (v0.1, Lecture 15)</div>
+        <p class="lead-in reveal" style="margin-bottom:8px;font-size:22px;">When deeply nested components need shared data, passing props through every level is painful:</p>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 330" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="pd-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f7768e"/></marker>
+          </defs>
+          <rect x="700" y="20" width="200" height="55" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="800" y="53" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">App</text>
+
+          <path d="M800,75 L800,110" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#pd-a)"/>
+          <text x="825" y="97" font-family="JetBrains Mono" font-size="12" fill="#f7768e">user data</text>
+          <rect x="700" y="115" width="200" height="55" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="800" y="148" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">Layout</text>
+
+          <path d="M800,170 L800,205" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#pd-a)"/>
+          <text x="825" y="192" font-family="JetBrains Mono" font-size="12" fill="#f7768e">user data</text>
+          <rect x="700" y="210" width="200" height="55" rx="8" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="800" y="243" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">Sidebar</text>
+
+          <path d="M800,265 L800,300" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#pd-a)"/>
+          <text x="825" y="287" font-family="JetBrains Mono" font-size="12" fill="#f7768e">user data</text>
+
+          <path d="M900,145 L1030,145" stroke="#565f89" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+          <path d="M1030,145 L1030,300" stroke="#565f89" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+          <path d="M1030,300 L905,300" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#pd-a)"/>
+          <rect x="700" y="300" width="200" height="0" fill="none"/>
+
+          <rect x="700" y="300" width="0" height="0"/>
+          <rect x="700" y="0" width="0" height="0"/>
+
+          <rect x="700" y="300" width="200" height="0"/>
+          <rect x="700" y="300" width="0" height="0"/>
+
+          <rect x="700" y="300" width="200" height="60" rx="8" fill="#1f2335" stroke="#ff9e64" stroke-width="2.5"/>
+          <text x="800" y="335" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">Avatar</text>
+          <text x="800" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89"> </text>
+
+          <text x="1200" y="145" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9ece6a">4 levels down: UserMenu</text>
+          <text x="1200" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#c0caf5">App → Layout → Sidebar → UserMenu → Avatar</text>
+          <text x="1200" y="55" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#f7768e">every intermediate level must forward props it never uses</text>
+        </svg>
+        </div>
+        <div class="note demo reveal" style="margin-top:0;"><b>Live demo:</b> App B's version isn't a diagram — it's the real L15 gap. <code class="icode">/habits</code> and <code class="icode">/stats</code> both need habit data, but <code class="icode">/stats</code> is a sibling route that can't reach <code class="icode">HabitsLayout</code>'s state via <code class="icode">Outlet</code> context, so it fetches its own stale copy. Today we fix that with one shared store.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">StatsPage.jsx</div><div class="spacer"></div><div class="seg right">02 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · SOLUTIONS OVERVIEW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">solutions.md</div>
+        <div class="breadcrumb">lecture16 / <b>solutions-overview</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">today's narrative</div>
+        <h2 class="title reveal">Solutions <span class="hl">Overview</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Approach</th><th>Complexity</th><th>Best for</th></tr></thead>
+            <tbody>
+                <tr><td>Props drilling</td><td>Low</td><td>Small apps, 2-3 levels</td></tr>
+                <tr><td>Context API</td><td>Medium</td><td>Theme, auth, locale</td></tr>
+                <tr><td>Redux / RTK</td><td>High</td><td>Complex state, many updates</td></tr>
+                <tr><td>Zustand</td><td>Low-Medium</td><td>Simple global state</td></tr>
+                <tr><td>TanStack Query</td><td>Medium</td><td>Server state (API data)</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:24px;">This lecture follows a narrative: <b>Problem</b> → Heavy solution (Redux) → Simplified (RTK) → Lightweight (Context) → Alternatives</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">solutions.md</div><div class="spacer"></div><div class="seg right">03 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · SECTION DIVIDER: REDUX FUNDAMENTALS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">redux-native.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture16</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">Redux <span class="hl">Fundamentals</span></div>
+            <div class="by" style="margin-top:18px;">the heavy solution, understood from first principles<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 05 · WHAT IS REDUX ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">redux.md</div>
+        <div class="breadcrumb">lecture16 / <b>what-is-redux</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three principles</div>
+        <h2 class="title reveal">What is <span class="hl">Redux</span>?</h2>
+        <ul class="list reveal">
+            <li>A <strong style="color:var(--cyan);">predictable state container</strong> for JavaScript applications</li>
+            <li>Not React-specific — works with any JS framework</li>
+            <li>Based on the <strong style="color:var(--orange);">Flux architecture</strong> pattern</li>
+        </ul>
+        <div class="cols c3 reveal" style="margin-top:28px;">
+            <div class="col-card accent-blue"><h3>1️⃣ Single Source</h3><p style="font-size:18px;color:var(--fg-dim);">One store holds all state</p></div>
+            <div class="col-card accent-purple"><h3>2️⃣ Read-Only</h3><p style="font-size:18px;color:var(--fg-dim);">Only actions can trigger changes</p></div>
+            <div class="col-card accent-teal"><h3>3️⃣ Pure Functions</h3><p style="font-size:18px;color:var(--fg-dim);">Reducers are pure — no side effects</p></div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">redux.md</div><div class="spacer"></div><div class="seg right">05 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · REDUX DATA FLOW ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">data-flow</div>
+        <div class="breadcrumb">lecture16 / <b>redux-data-flow</b></div>
+    </div>
+    <div class="canvas" style="align-items:center;">
+        <div class="kicker reveal" style="align-self:flex-start;">the core cycle</div>
+        <h2 class="title reveal" style="align-self:flex-start;">Redux Data <span class="hl">Flow</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%;">
+        <svg viewBox="0 0 900 620" width="640" height="620" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rf-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <circle cx="450" cy="110" r="100" fill="#1f2335" stroke="#7aa2f7" stroke-width="3"/>
+          <text x="450" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="700" fill="#7aa2f7">Store</text>
+
+          <circle cx="150" cy="470" r="100" fill="#1f2335" stroke="#9ece6a" stroke-width="3"/>
+          <text x="150" y="478" text-anchor="middle" font-family="JetBrains Mono" font-size="26" font-weight="700" fill="#9ece6a">View</text>
+
+          <circle cx="750" cy="470" r="100" fill="#1f2335" stroke="#bb9af7" stroke-width="3"/>
+          <text x="750" y="478" text-anchor="middle" font-family="JetBrains Mono" font-size="22" font-weight="700" fill="#bb9af7">Reducers</text>
+
+          <path d="M262,398 L388,178" stroke="#7dcfff" stroke-width="3" fill="none" marker-end="url(#rf-a)"/>
+          <text x="270" y="270" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7dcfff">③ update view</text>
+
+          <path d="M262,398 L262,398" stroke="none"/>
+          <path d="M250,470 L650,470" stroke="#7dcfff" stroke-width="3" fill="none" marker-end="url(#rf-a)"/>
+          <text x="450" y="450" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7dcfff">① dispatch action</text>
+
+          <path d="M638,398 L512,178" stroke="#7dcfff" stroke-width="3" fill="none" marker-end="url(#rf-a)"/>
+          <text x="600" y="270" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7dcfff">② update state</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:0;width:100%;">The cycle never breaks: <b>View dispatches</b> → <b>Reducer updates</b> → <b>Store notifies</b> → <b>View re-renders</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">data-flow</div><div class="spacer"></div><div class="seg right">06 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · REDUX TERMS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">terms.md</div>
+        <div class="breadcrumb">lecture16 / <b>redux-terms</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">vocabulary you'll use constantly</div>
+        <h2 class="title reveal">Redux <span class="hl">Terms</span></h2>
+        <ul class="list reveal">
+            <li><strong style="color:var(--cyan);">Store</strong> — single source of truth — the one place holding all app state</li>
+            <li><strong style="color:var(--cyan);">Action</strong> — plain JS object describing what happened (<code class="icode">{ type: 'ADD_TODO', payload: '...' }</code>)</li>
+            <li><strong style="color:var(--cyan);">Dispatch</strong> — the only way to trigger a state change — sends action to the reducer</li>
+            <li><strong style="color:var(--cyan);">Reducer</strong> — pure function: <code class="icode">(state, action) =&gt; newState</code></li>
+            <li><strong style="color:var(--cyan);">Slice</strong> — a collection of reducer logic and actions for one feature</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">terms.md</div><div class="spacer"></div><div class="seg right">07 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · NATIVE REDUX: REDUCER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">counterReducer.js</div>
+        <div class="breadcrumb">lecture16 / <b>native-redux-reducer</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">state in, new state out</div>
+        <h2 class="title reveal">Native Redux: <span class="hl">Reducer</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">counterReducer.js</div>
+            <pre><span class="tok-kw">const</span> initialState <span class="tok-op">=</span> <span class="tok-pun">{</span> count<span class="tok-pun">:</span> <span class="tok-num">0</span> <span class="tok-pun">};</span>
+<span class="tok-kw">function</span> <span class="tok-fn">counterReducer</span><span class="tok-pun">(</span>state <span class="tok-op">=</span> initialState<span class="tok-pun">,</span> action<span class="tok-pun">) {</span>
+  <span class="tok-kw">switch</span> <span class="tok-pun">(</span>action<span class="tok-pun">.</span>type<span class="tok-pun">) {</span>
+    <span class="tok-kw">case</span> <span class="tok-str">'INCREMENT'</span><span class="tok-pun">:</span>
+      <span class="tok-kw">return</span> <span class="tok-pun">{ ...</span>state<span class="tok-pun">,</span> count<span class="tok-pun">:</span> state<span class="tok-pun">.</span>count <span class="tok-op">+</span> <span class="tok-num">1</span> <span class="tok-pun">};</span>
+    <span class="tok-kw">case</span> <span class="tok-str">'DECREMENT'</span><span class="tok-pun">:</span>
+      <span class="tok-kw">return</span> <span class="tok-pun">{ ...</span>state<span class="tok-pun">,</span> count<span class="tok-pun">:</span> state<span class="tok-pun">.</span>count <span class="tok-op">-</span> <span class="tok-num">1</span> <span class="tok-pun">};</span>
+    <span class="tok-kw">default</span><span class="tok-pun">:</span>
+      <span class="tok-kw">return</span> state<span class="tok-pun">;</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">A reducer is a <b>pure function</b>: same input always produces same output, no side effects.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">counterReducer.js</div><div class="spacer"></div><div class="seg right">08 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · NATIVE REDUX: STORE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">redux-native.js</div>
+        <div class="breadcrumb">lecture16 / <b>native-redux-store</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three methods, that's the whole API</div>
+        <h2 class="title reveal">Native Redux: <span class="hl">Store</span></h2>
+        <div class="filemark reveal">redux-native.js</div>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">redux-native.js</div>
+                <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> createStore <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'redux'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">const</span> store <span class="tok-op">=</span> <span class="tok-fn">createStore</span><span class="tok-pun">(</span>counterReducer<span class="tok-pun">);</span>
+
+store<span class="tok-pun">.</span><span class="tok-fn">subscribe</span><span class="tok-pun">(() =&gt;</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span>store<span class="tok-pun">.</span><span class="tok-fn">getState</span><span class="tok-pun">()));</span>
+
+store<span class="tok-pun">.</span><span class="tok-fn">dispatch</span><span class="tok-pun">({</span> type<span class="tok-pun">:</span> <span class="tok-str">'INCREMENT'</span> <span class="tok-pun">});</span> <span class="tok-com">// { count: 1 }</span>
+store<span class="tok-pun">.</span><span class="tok-fn">dispatch</span><span class="tok-pun">({</span> type<span class="tok-pun">:</span> <span class="tok-str">'INCREMENT'</span> <span class="tok-pun">});</span> <span class="tok-com">// { count: 2 }</span>
+store<span class="tok-pun">.</span><span class="tok-fn">dispatch</span><span class="tok-pun">({</span> type<span class="tok-pun">:</span> <span class="tok-str">'DECREMENT'</span> <span class="tok-pun">});</span> <span class="tok-com">// { count: 1 }</span></pre>
+            </div>
+            <div>
+                <ul class="list">
+                    <li><code class="icode">dispatch(action)</code> — send action to reducer</li>
+                    <li><code class="icode">getState()</code> — get current state</li>
+                    <li><code class="icode">subscribe(listener)</code> — listen for state changes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">redux-native.js</div><div class="spacer"></div><div class="seg right">09 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · REDUX IN REACT: REACT-REDUX ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Counter.jsx</div>
+        <div class="breadcrumb">lecture16 / <b>redux-in-react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">connecting the store to components</div>
+        <h2 class="title reveal">Redux in React: <code style="font-family:inherit;">react-redux</code></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">Counter.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> Provider<span class="tok-pun">,</span> useSelector<span class="tok-pun">,</span> useDispatch <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-redux'</span><span class="tok-pun">;</span>
+
+<span class="tok-com">// Wrap app with Provider</span>
+<span class="tok-pun">&lt;</span><span class="tok-cls">Provider</span> <span class="tok-attr">store</span><span class="tok-op">=</span><span class="tok-pun">{</span>store<span class="tok-pun">}&gt;&lt;</span><span class="tok-cls">App</span> <span class="tok-pun">/&gt;&lt;/</span><span class="tok-cls">Provider</span><span class="tok-pun">&gt;</span>
+<span class="tok-com">// In any component:</span>
+<span class="tok-kw">function</span> <span class="tok-fn">Counter</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> count <span class="tok-op">=</span> <span class="tok-fn">useSelector</span><span class="tok-pun">(</span>state <span class="tok-op">=&gt;</span> state<span class="tok-pun">.</span>count<span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> dispatch <span class="tok-op">=</span> <span class="tok-fn">useDispatch</span><span class="tok-pun">();</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;{</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">dispatch</span><span class="tok-pun">({</span> type<span class="tok-pun">:</span> <span class="tok-str">'INCREMENT'</span> <span class="tok-pun">})}&gt;</span>+1<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Counter.jsx</div><div class="spacer"></div><div class="seg right">10 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · THE PROBLEM WITH NATIVE REDUX ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">boilerplate.md</div>
+        <div class="breadcrumb">lecture16 / <b>problem-with-native-redux</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the price of "explicit"</div>
+        <h2 class="title reveal">The Problem with <span class="hl">Native Redux</span></h2>
+        <p class="lead-in reveal">Native Redux requires a lot of boilerplate:</p>
+        <ul class="list reveal">
+            <li>Action type constants (<code class="icode">const INCREMENT = 'INCREMENT'</code>)</li>
+            <li>Action creators (<code class="icode">const increment = () =&gt; ({ type: INCREMENT })</code>)</li>
+            <li>Switch statements in reducers</li>
+            <li>Immutable update patterns (<code class="icode">{ ...state, nested: { ...state.nested } }</code>)</li>
+            <li>Separate files for actions, reducers, types</li>
+        </ul>
+        <div class="note ok reveal" style="margin-top:20px;">This is why <b>Redux Toolkit (RTK)</b> was created.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">boilerplate.md</div><div class="spacer"></div><div class="seg right">11 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · SECTION DIVIDER: REDUX TOOLKIT ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">habitsSlice.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture16</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Redux <span class="hl">Toolkit</span></div>
+            <div class="by" style="margin-top:18px;">the same principles, without the ceremony<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 13 · REDUX TOOLKIT: CREATESLICE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">counterSlice.js</div>
+        <div class="breadcrumb">lecture16 / <b>redux-toolkit-createslice</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">actions, reducers, and store setup in one call</div>
+        <h2 class="title reveal">Redux Toolkit: <code style="font-family:inherit;">createSlice</code></h2>
+        <div class="filemark reveal">redux-rtk.js, habit-tracker/src/store/habitsSlice.js</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">counterSlice.js</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> createSlice<span class="tok-pun">,</span> configureStore <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'@reduxjs/toolkit'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> counterSlice <span class="tok-op">=</span> <span class="tok-fn">createSlice</span><span class="tok-pun">({</span>
+  name<span class="tok-pun">:</span> <span class="tok-str">'counter'</span><span class="tok-pun">,</span>
+  initialState<span class="tok-pun">:</span> <span class="tok-pun">{</span> count<span class="tok-pun">:</span> <span class="tok-num">0</span> <span class="tok-pun">},</span>
+  reducers<span class="tok-pun">:</span> <span class="tok-pun">{</span>
+    increment<span class="tok-pun">:</span> <span class="tok-pun">(</span>state<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>count <span class="tok-op">+=</span> <span class="tok-num">1</span><span class="tok-pun">; },</span>     <span class="tok-com">// "mutating" is OK with Immer</span>
+    decrement<span class="tok-pun">:</span> <span class="tok-pun">(</span>state<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>count <span class="tok-op">-=</span> <span class="tok-num">1</span><span class="tok-pun">; },</span>
+    addBy<span class="tok-pun">:</span> <span class="tok-pun">(</span>state<span class="tok-pun">,</span> action<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>count <span class="tok-op">+=</span> action<span class="tok-pun">.</span>payload<span class="tok-pun">; },</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">});</span>
+<span class="tok-kw">export const</span> <span class="tok-pun">{</span> increment<span class="tok-pun">,</span> decrement<span class="tok-pun">,</span> addBy <span class="tok-pun">}</span> <span class="tok-op">=</span> counterSlice<span class="tok-pun">.</span>actions<span class="tok-pun">;</span>
+<span class="tok-kw">const</span> store <span class="tok-op">=</span> <span class="tok-fn">configureStore</span><span class="tok-pun">({</span> reducer<span class="tok-pun">: {</span> counter<span class="tok-pun">:</span> counterSlice<span class="tok-pun">.</span>reducer <span class="tok-pun">} });</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;">RTK uses <b>Immer</b> under the hood. <b>Live demo:</b> <code class="icode">habitsSlice.js</code>'s <code class="icode">checkIn</code> does <code class="icode">habit.checkIns.push(...)</code> directly — Immer only creates a new object for the changed habit, so unaffected siblings keep their reference, which is <em style="color:var(--orange);">why</em> <code class="icode">React.memo</code> on <code class="icode">HabitListItem</code> still works.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">counterSlice.js</div><div class="spacer"></div><div class="seg right">13 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · ASYNC ACTIONS: CREATEASYNCTHUNK ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">usersSlice.js</div>
+        <div class="breadcrumb">lecture16 / <b>async-actions-createasyncthunk</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">loading, success, and failure as reducer cases</div>
+        <h2 class="title reveal" style="font-size:52px;">Async Actions: <code style="font-family:inherit;">createAsyncThunk</code></h2>
+        <div class="filemark reveal">habit-tracker/src/store/habitsSlice.js, useEnsureHabitsLoaded.js</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">usersSlice.js</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> createAsyncThunk <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'@reduxjs/toolkit'</span><span class="tok-pun">;</span>
+<span class="tok-kw">export const</span> fetchUsers <span class="tok-op">=</span> <span class="tok-fn">createAsyncThunk</span><span class="tok-pun">(</span><span class="tok-str">'users/fetch'</span><span class="tok-pun">,</span> <span class="tok-kw">async</span> <span class="tok-pun">() =&gt; {</span>
+  <span class="tok-kw">const</span> response <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetch</span><span class="tok-pun">(</span><span class="tok-str">'/api/users'</span><span class="tok-pun">);</span> <span class="tok-kw">return</span> response<span class="tok-pun">.</span><span class="tok-fn">json</span><span class="tok-pun">();</span>
+<span class="tok-pun">});</span>
+<span class="tok-kw">const</span> usersSlice <span class="tok-op">=</span> <span class="tok-fn">createSlice</span><span class="tok-pun">({</span>
+  name<span class="tok-pun">:</span> <span class="tok-str">'users'</span><span class="tok-pun">,</span> initialState<span class="tok-pun">: {</span> items<span class="tok-pun">: [],</span> loading<span class="tok-pun">:</span> <span class="tok-kw">false</span><span class="tok-pun">,</span> error<span class="tok-pun">:</span> <span class="tok-kw">null</span> <span class="tok-pun">},</span>
+  extraReducers<span class="tok-pun">: (</span>builder<span class="tok-pun">) =&gt; {</span>
+    builder<span class="tok-pun">.</span><span class="tok-fn">addCase</span><span class="tok-pun">(</span>fetchUsers<span class="tok-pun">.</span>pending<span class="tok-pun">, (</span>state<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>loading <span class="tok-op">=</span> <span class="tok-kw">true</span><span class="tok-pun">; })</span>
+      <span class="tok-pun">.</span><span class="tok-fn">addCase</span><span class="tok-pun">(</span>fetchUsers<span class="tok-pun">.</span>fulfilled<span class="tok-pun">, (</span>state<span class="tok-pun">,</span> action<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>loading <span class="tok-op">=</span> <span class="tok-kw">false</span><span class="tok-pun">;</span> state<span class="tok-pun">.</span>items <span class="tok-op">=</span> action<span class="tok-pun">.</span>payload<span class="tok-pun">; })</span>
+      <span class="tok-pun">.</span><span class="tok-fn">addCase</span><span class="tok-pun">(</span>fetchUsers<span class="tok-pun">.</span>rejected<span class="tok-pun">, (</span>state<span class="tok-pun">,</span> action<span class="tok-pun">) =&gt; {</span> state<span class="tok-pun">.</span>loading <span class="tok-op">=</span> <span class="tok-kw">false</span><span class="tok-pun">;</span> state<span class="tok-pun">.</span>error <span class="tok-op">=</span> action<span class="tok-pun">.</span>error<span class="tok-pun">.</span>message<span class="tok-pun">; });</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;"><b>Live demo:</b> <code class="icode">fetchHabits</code> is the same <code class="icode">pending</code>/<code class="icode">fulfilled</code>/<code class="icode">rejected</code> pattern. <code class="icode">useEnsureHabitsLoaded.js</code> is a small custom Hook both <code class="icode">HabitsLayout</code> and <code class="icode">StatsPage</code> call on mount — whichever route mounts first dispatches the thunk; the other just reads the cached <code class="icode">status</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">usersSlice.js</div><div class="spacer"></div><div class="seg right">14 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · REDUX DEVTOOLS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">devtools.md</div>
+        <div class="breadcrumb">lecture16 / <b>redux-devtools</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">see every state change happen</div>
+        <h2 class="title reveal">Redux <span class="hl">DevTools</span></h2>
+        <ul class="list reveal">
+            <li>Browser extension for Chrome/Firefox</li>
+            <li><strong style="color:var(--cyan);">Time-travel debugging</strong>: step through every action</li>
+            <li>Inspect state at any point in history</li>
+            <li>RTK enables DevTools automatically in development</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:24px;"><b>Live demo:</b> <code class="icode">habit-tracker/src/store/store.js</code>'s <code class="icode">configureStore</code> call enables this automatically — open the Redux DevTools extension while running the app and dispatch a <code class="icode">checkIn</code> to see it.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">devtools.md</div><div class="spacer"></div><div class="seg right">15 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · REDUX RECAP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">recap</div>
+        <div class="breadcrumb">lecture16 / <b>redux-recap</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 26px;">
+        <div class="kicker reveal">the full loop, one more time</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">Redux <span class="hl">Recap</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1500 420" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rc-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <rect x="40" y="70" width="220" height="70" rx="10" fill="#1f2335" stroke="#e0af68" stroke-width="2.5"/>
+          <text x="150" y="102" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#e0af68">Dispatch</text>
+          <text x="150" y="124" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#9aa5ce">Event</text>
+
+          <path d="M150,70 L150,40 L1050,40 L1050,105" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#rc-a)"/>
+          <text x="600" y="30" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7dcfff">② dispatch(action)</text>
+
+          <rect x="940" y="60" width="420" height="240" rx="12" fill="none" stroke="#7aa2f7" stroke-width="2" stroke-dasharray="6 5"/>
+          <text x="1240" y="88" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">Store</text>
+
+          <rect x="1020" y="105" width="260" height="65" rx="8" fill="#1f2335" stroke="#9ece6a" stroke-width="2"/>
+          <text x="1150" y="143" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">Reducer</text>
+
+          <path d="M1150,170 L1150,205" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#rc-a)"/>
+          <text x="1195" y="192" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#7dcfff">③ update state</text>
+
+          <rect x="1020" y="210" width="260" height="65" rx="8" fill="#1f2335" stroke="#bb9af7" stroke-width="2"/>
+          <text x="1150" y="248" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#bb9af7">State</text>
+
+          <path d="M1150,105 L1150,90 L1000,90 L1000,137 L1020,137" stroke="#565f89" stroke-width="1.5" fill="none" marker-end="url(#rc-a)"/>
+
+          <path d="M1020,242 L280,340" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#rc-a)"/>
+          <text x="650" y="358" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7dcfff">④ pass new state</text>
+
+          <rect x="60" y="310" width="220" height="65" rx="10" fill="#1f2335" stroke="#f7768e" stroke-width="2.5"/>
+          <text x="170" y="348" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#f7768e">UI</text>
+
+          <path d="M120,310 L120,140" stroke="#7dcfff" stroke-width="2.5" fill="none" marker-end="url(#rc-a)"/>
+          <text x="60" y="230" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#7dcfff">① user action</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:0;">One direction, always: <b>Event → Dispatch → Reducer → State → UI</b>, then back to the next user event.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">recap</div><div class="spacer"></div><div class="seg right">16 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · SECTION DIVIDER: CONTEXT & DECISION FRAMEWORK ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">ViewPreferencesContext.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture16</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Context <span class="hl">&amp; Choosing</span></div>
+            <div class="by" style="margin-top:18px;">the lightweight option, and when to reach for it<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 18 · CONTEXT API ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ThemeContext.jsx</div>
+        <div class="breadcrumb">lecture16 / <b>context-api</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">sharing data without threading props</div>
+        <h2 class="title reveal">Context <span class="hl">API</span></h2>
+        <div class="filemark reveal">habit-tracker/src/context/ViewPreferencesContext.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">ThemeContext.jsx</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> createContext<span class="tok-pun">,</span> useContext<span class="tok-pun">,</span> useState <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> ThemeContext <span class="tok-op">=</span> <span class="tok-fn">createContext</span><span class="tok-pun">(</span><span class="tok-str">'light'</span><span class="tok-pun">);</span>
+<span class="tok-kw">function</span> <span class="tok-fn">ThemeProvider</span><span class="tok-pun">({</span> children <span class="tok-pun">}) {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>theme<span class="tok-pun">,</span> setTheme<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-str">'light'</span><span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-cls">ThemeContext.Provider</span> <span class="tok-attr">value</span><span class="tok-op">=</span><span class="tok-pun">{{</span> theme<span class="tok-pun">,</span> setTheme <span class="tok-pun">}}&gt;{</span>children<span class="tok-pun">}&lt;/</span><span class="tok-cls">ThemeContext.Provider</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span>
+<span class="tok-kw">function</span> <span class="tok-fn">ThemedButton</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> theme<span class="tok-pun">,</span> setTheme <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useContext</span><span class="tok-pun">(</span>ThemeContext<span class="tok-pun">);</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">setTheme</span><span class="tok-pun">(</span>theme <span class="tok-op">===</span> <span class="tok-str">'light'</span> <span class="tok-op">?</span> <span class="tok-str">'dark'</span> <span class="tok-op">:</span> <span class="tok-str">'light'</span><span class="tok-pun">)}&gt;</span>Theme: <span class="tok-pun">{</span>theme<span class="tok-pun">}&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;"><b>Live demo:</b> the "Compact view" toggle in the navbar is <code class="icode">useReducer</code> + Context, living entirely separately from the Redux store — see the next slide for why these two are deliberately different tools.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ThemeContext.jsx</div><div class="spacer"></div><div class="seg right">18 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · CONTEXT: HOW IT RELATES TO REDUX ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture16 / <b>context-vs-redux</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">shared lineage, different scope</div>
+        <h2 class="title reveal" style="font-size:56px;">Context: How It Relates to <span class="hl">Redux</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;">Context borrowed concepts from Redux:</p>
+        <table class="comp-table reveal">
+            <thead><tr><th>Concept</th><th>Redux</th><th>Context</th></tr></thead>
+            <tbody>
+                <tr><td>Provider</td><td><code>&lt;Provider store={store}&gt;</code></td><td><code>&lt;Context.Provider value={...}&gt;</code></td></tr>
+                <tr><td>Consume</td><td><code>useSelector</code></td><td><code>useContext</code></td></tr>
+                <tr><td>Update</td><td><code>dispatch(action)</code></td><td>call setter from value</td></tr>
+                <tr><td>Scope</td><td>Global store</td><td>Per-context scope</td></tr>
+            </tbody>
+        </table>
+        <div class="note demo reveal" style="margin-top:16px;"><b>Live demo:</b> <code class="icode">App.jsx</code> wraps the app in <b>both</b> <code class="icode">&lt;Provider store={"{store}"}&gt;</code> and <code class="icode">&lt;ViewPreferencesProvider&gt;</code> at once, on purpose — Redux owns habits/check-ins (async, shared across distant routes); Context owns a UI preference (sync, few actions). Neither does the other's job.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">19 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · USEREDUCER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Counter.jsx</div>
+        <div class="breadcrumb">lecture16 / <b>usereducer</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">redux's mental model, built into React</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">useReducer</code> — <span class="hl">Redux-lite in React</span></h2>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">Counter.jsx</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">reducer</span><span class="tok-pun">(</span>state<span class="tok-pun">,</span> action<span class="tok-pun">) {</span>
+  <span class="tok-kw">switch</span> <span class="tok-pun">(</span>action<span class="tok-pun">.</span>type<span class="tok-pun">) {</span>
+    <span class="tok-kw">case</span> <span class="tok-str">'increment'</span><span class="tok-pun">:</span> <span class="tok-kw">return</span> <span class="tok-pun">{</span> count<span class="tok-pun">:</span> state<span class="tok-pun">.</span>count <span class="tok-op">+</span> <span class="tok-num">1</span> <span class="tok-pun">};</span>
+    <span class="tok-kw">case</span> <span class="tok-str">'decrement'</span><span class="tok-pun">:</span> <span class="tok-kw">return</span> <span class="tok-pun">{</span> count<span class="tok-pun">:</span> state<span class="tok-pun">.</span>count <span class="tok-op">-</span> <span class="tok-num">1</span> <span class="tok-pun">};</span>
+    <span class="tok-kw">default</span><span class="tok-pun">:</span> <span class="tok-kw">throw new</span> <span class="tok-cls">Error</span><span class="tok-pun">(</span><span class="tok-str">`Unknown action: ${</span>action<span class="tok-pun">.</span>type<span class="tok-str">}`</span><span class="tok-pun">);</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span>
+<span class="tok-kw">function</span> <span class="tok-fn">Counter</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>state<span class="tok-pun">,</span> dispatch<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useReducer</span><span class="tok-pun">(</span>reducer<span class="tok-pun">, {</span> count<span class="tok-pun">:</span> <span class="tok-num">0</span> <span class="tok-pun">});</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;{</span>state<span class="tok-pun">.</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{() =&gt;</span> <span class="tok-fn">dispatch</span><span class="tok-pun">({</span> type<span class="tok-pun">:</span> <span class="tok-str">'increment'</span> <span class="tok-pun">})}&gt;</span>+1<span class="tok-pun">&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:14px;"><code class="icode">useReducer</code> + Context = a lightweight Redux alternative for medium-complexity state.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Counter.jsx</div><div class="spacer"></div><div class="seg right">20 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · WHEN TO USE WHAT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">decision.md</div>
+        <div class="breadcrumb">lecture16 / <b>when-to-use-what</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the decision framework</div>
+        <h2 class="title reveal">When to Use <span class="hl">What?</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Scenario</th><th>Recommended</th></tr></thead>
+            <tbody>
+                <tr><td>Local component state (form input, toggle)</td><td><code>useState</code></td></tr>
+                <tr><td>Shared state across 2-3 nearby components</td><td>Lift state up + props</td></tr>
+                <tr><td>Theme, locale, auth user</td><td>Context API</td></tr>
+                <tr><td>Complex state with many actions</td><td><code>useReducer</code> + Context</td></tr>
+                <tr><td>Large app with async operations, caching</td><td>Redux Toolkit</td></tr>
+                <tr><td>Server state (API data, caching, sync)</td><td>TanStack Query / RTK Query</td></tr>
+            </tbody>
+        </table>
+        <div class="note ok reveal" style="margin-top:20px;"><b>Start simple.</b> Use <code class="icode">useState</code> → lift up → Context → Redux only when needed.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">decision.md</div><div class="spacer"></div><div class="seg right">21 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 22 · MODERN ALTERNATIVES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">alternatives.md</div>
+        <div class="breadcrumb">lecture16 / <b>modern-alternatives</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">5-10 min overview — awareness, not mastery</div>
+        <h2 class="title reveal">Modern <span class="hl">Alternatives</span></h2>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:22px;color:var(--cyan);font-weight:700;margin-bottom:10px;">Zustand — Minimal Global State</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">store.js</div>
+                    <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> create <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'zustand'</span><span class="tok-pun">;</span>
+<span class="tok-kw">const</span> useStore <span class="tok-op">=</span> <span class="tok-fn">create</span><span class="tok-pun">((</span>set<span class="tok-pun">) =&gt; ({</span>
+  count<span class="tok-pun">:</span> <span class="tok-num">0</span><span class="tok-pun">,</span>
+  increment<span class="tok-pun">:</span> <span class="tok-pun">() =&gt;</span> <span class="tok-fn">set</span><span class="tok-pun">((</span>s<span class="tok-pun">) =&gt; ({</span> count<span class="tok-pun">:</span> s<span class="tok-pun">.</span>count <span class="tok-op">+</span> <span class="tok-num">1</span> <span class="tok-pun">})),</span>
+<span class="tok-pun">}));</span>
+<span class="tok-kw">function</span> <span class="tok-fn">Counter</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> count<span class="tok-pun">,</span> increment <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useStore</span><span class="tok-pun">();</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">button</span> <span class="tok-attr">onClick</span><span class="tok-op">=</span><span class="tok-pun">{</span>increment<span class="tok-pun">}&gt;{</span>count<span class="tok-pun">}&lt;/</span><span class="tok-tag">button</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:22px;color:var(--purple);font-weight:700;margin-bottom:10px;">TanStack Query — Server State</p>
+                <ul class="list">
+                    <li>Handles fetching, caching, synchronization, and background updates</li>
+                    <li>Replaces most Redux usage for API data</li>
+                    <li><code class="icode">useQuery</code>, <code class="icode">useMutation</code>, automatic refetching</li>
+                </ul>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">You don't need to learn these now — just know they exist for future reference.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">alternatives.md</div><div class="spacer"></div><div class="seg right">22 / 23</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture16</div>
+        <div class="breadcrumb">lecture16 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <ul class="list reveal">
+            <li><strong>1.</strong> The Problem: Props drilling in large component trees</li>
+            <li><strong>2.</strong> Redux (native): Action → Dispatch → Reducer → Store</li>
+            <li><strong>3.</strong> RTK: how Redux Toolkit simplifies Redux (<code class="icode">createSlice</code>, <code class="icode">createAsyncThunk</code>)</li>
+            <li><strong>4.</strong> Context API: React's built-in solution, borrowed from Redux patterns</li>
+            <li><strong>5.</strong> <code class="icode">useReducer</code>: Redux-lite for medium complexity</li>
+            <li><strong>6.</strong> Decision framework: when to use what</li>
+            <li><strong>7.</strong> Modern alternatives: Zustand, TanStack Query (awareness)</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:16px;">🔥 <b>Live demo:</b> <code class="icode">sample_code/lecture16/habit-tracker</code> (App B, v0.2). The L15 gap is closed — check in a habit on <code class="icode">/habits</code>, visit <code class="icode">/stats</code>, and the numbers now reflect it. <b>Next lecture:</b> Fullstack Integration + TypeScript + Testing + AI Workflow</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture16</div><div class="spacer"></div><div class="seg right">23 / 23</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture16-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture16.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>
