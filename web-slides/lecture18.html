@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 18 — GraphQL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–17) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+ul.list.check li::before { content:"✅"; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+.tok-gql { color:var(--purple); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🎬";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 18 ADDITIONS: app-arc chips + ReelTalk mock === */
+.phase-banner { display:flex;align-items:center;gap:22px;flex:1;min-height:0;justify-content:center; }
+.phase-chip { display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 30px;border-radius:16px;background:var(--panel);border:2px solid var(--border-soft);opacity:0.55;transform:scale(0.96); }
+.phase-chip .pc-icon { font-size:36px; }
+.phase-chip .pc-label { font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--fg-dim);text-align:center; }
+.phase-chip.now { opacity:1;transform:scale(1.06);border-color:var(--purple);box-shadow:0 0 46px rgba(187,154,247,0.28); }
+.phase-chip.now .pc-label { color:var(--purple); }
+.phase-arrow { font-size:30px;color:var(--fg-faint); }
+
+.reel-mock { display:flex;gap:24px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px 30px;box-shadow:0 20px 50px rgba(0,0,0,0.3); }
+.reel-poster { width:110px;height:150px;border-radius:10px;background:linear-gradient(135deg,#bb9af7,#7aa2f7);display:flex;align-items:center;justify-content:center;font-size:44px;flex-shrink:0;box-shadow:0 12px 30px rgba(187,154,247,0.3); }
+.reel-body { display:flex;flex-direction:column;gap:8px;min-width:0; }
+.reel-title { font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--fg); }
+.reel-meta { font-family:var(--font-mono);font-size:14px;color:var(--fg-faint); }
+.reel-stars { font-size:16px;color:var(--yellow); }
+.reel-review { background:var(--panel-2);border-radius:8px;padding:10px 14px;margin-top:6px;font-size:14px;color:var(--fg-dim); }
+.reel-review b { color:var(--fg); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">typeDefs.js <span class="dirty">— new</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ npm install @apollo/server graphql</span></div>
+            <div class="term-out">› Loading: schema · resolvers · DataLoader · Apollo</div>
+            <div class="section-num">Lecture 18</div>
+            <h1><span class="hl">GraphQL</span></h1>
+            <div class="by">// Modern API Query Language<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note ok reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟢 <b>Use AI freely.</b> Schema design and the N+1/DataLoader optimization strategy are the concepts to understand deeply — resolver boilerplate, Apollo Client setup, and UI code can be AI-generated.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">lecture18 / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead — a new topic, a new app</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li>What GraphQL is and why it exists (vs REST)</li>
+            <li>Query / Mutation / Subscription, type system, resolvers</li>
+            <li>Cursor-based pagination (Relay-style connections)</li>
+            <li>The N+1 problem and solving it with DataLoader</li>
+            <li>Apollo Client: queries, mutations, subscriptions, and precise cache updates</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;"><b>Live demo — App C, v0.1:</b> starting today, a new app runs alongside these slides — <b>ReelTalk</b>, a movie review platform. Code: <code class="icode">sample_code/lecture18/reeltalk</code> (frontend) + <code class="icode">reeltalk-api</code> (backend). Continues into Lecture 19 (SSR + styling) and Lecture 20 (SSE/WebSocket).</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">02 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · MEET REELTALK ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">reeltalk</div>
+        <div class="breadcrumb">lecture18 / <b>meet-reeltalk</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the third through-line app begins</div>
+        <h2 class="title reveal">Meet <span class="hl">ReelTalk</span></h2>
+        <div class="split eq reveal">
+            <div class="reel-mock">
+                <div class="reel-poster">🎬</div>
+                <div class="reel-body">
+                    <div class="reel-title">Nebula Drift</div>
+                    <div class="reel-meta">2024 · Sci-Fi · dir. R. Okafor</div>
+                    <div class="reel-stars">★★★★☆ <span style="color:var(--fg-faint);font-family:'JetBrains Mono';font-size:13px;">4.2 avg (18 reviews)</span></div>
+                    <div class="reel-review"><b>alice_j:</b> "Visually stunning, the pacing drags mid-act."</div>
+                </div>
+            </div>
+            <div>
+                <ul class="list">
+                    <li>A movie review platform — GraphQL API, real-time reviews</li>
+                    <li>Code: <code class="icode">sample_code/lecture18/reeltalk(-api)</code></li>
+                    <li>Browse movies → read reviews → post one → watch it appear live elsewhere</li>
+                </ul>
+                <div class="phase-banner" style="justify-content:flex-start;margin-top:26px;gap:16px;">
+                    <div class="phase-chip now"><div class="pc-icon">🎬</div><div class="pc-label">L18<br>v0.1 GraphQL layer</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">🎨</div><div class="pc-label">L19<br>v0.2 SSR + styling</div></div>
+                    <div class="phase-arrow">→</div>
+                    <div class="phase-chip"><div class="pc-icon">📡</div><div class="pc-label">L20<br>v0.3 real-time</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:20px;">Independent from <code class="icode">sample_code/graphql-demo</code> — some slides still reference that older demo for generic Apollo setup patterns, but ReelTalk is its own schema and codebase.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">reeltalk</div><div class="spacer"></div><div class="seg right">03 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · SECTION DIVIDER: WHAT & WHY GRAPHQL ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">query.graphql</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">What <span class="hl">&amp; Why</span> GraphQL</div>
+            <div class="by" style="margin-top:18px;">a query language for APIs, not databases<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 05 · WHAT IS GRAPHQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">graphql.md</div>
+        <div class="breadcrumb">lecture18 / <b>what-is-graphql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a query language, not a database</div>
+        <h2 class="title reveal">What is <span class="hl">GraphQL?</span></h2>
+        <ul class="list reveal">
+            <li>GraphQL is a <strong style="color:var(--cyan);">query language for APIs</strong> and a runtime for fulfilling those queries with your existing data</li>
+            <li>Provides a complete and understandable description of the data in your API</li>
+            <li>Gives clients the power to ask for <strong style="color:var(--orange);">exactly what they need</strong> and nothing more</li>
+            <li>Makes it easier to evolve APIs over time</li>
+            <li>Enables powerful developer tools</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">graphql.md</div><div class="spacer"></div><div class="seg right">05 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · GRAPHQL HISTORY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">history.md</div>
+        <div class="breadcrumb">lecture18 / <b>graphql-history</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 26px;">
+        <div class="kicker reveal">from internal tool to industry standard</div>
+        <h2 class="title reveal" style="font-size:56px;margin-bottom:10px;">GraphQL <span class="hl">History</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 260" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <line x1="60" y1="130" x2="1540" y2="130" stroke="#2a2e45" stroke-width="3"/>
+          <circle cx="140" cy="130" r="10" fill="#7aa2f7"/>
+          <text x="140" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#7aa2f7">2012</text>
+          <text x="140" y="165" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">Built internally</text>
+          <text x="140" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">at Facebook, for mobile</text>
+
+          <circle cx="580" cy="130" r="10" fill="#9ece6a"/>
+          <text x="580" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">2015</text>
+          <text x="580" y="165" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">Public release</text>
+          <text x="580" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">open specification</text>
+
+          <circle cx="1020" cy="130" r="10" fill="#bb9af7"/>
+          <text x="1020" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#bb9af7">2018</text>
+          <text x="1020" y="165" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">GraphQL Foundation</text>
+          <text x="1020" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">joins Linux Foundation</text>
+
+          <circle cx="1460" cy="130" r="11" fill="#ff9e64"/>
+          <text x="1460" y="100" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#ff9e64">Today</text>
+          <text x="1460" y="165" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">Industry standard</text>
+          <text x="1460" y="185" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">GitHub, Shopify, Airbnb...</text>
+        </svg>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">history.md</div><div class="spacer"></div><div class="seg right">06 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · GRAPHQL VS REST ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture18 / <b>graphql-vs-rest</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">two philosophies for API design</div>
+        <h2 class="title reveal">GraphQL <span class="hl">vs.</span> REST</h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>REST</th><th>GraphQL</th></tr></thead>
+            <tbody>
+                <tr><td>Multiple endpoints</td><td>Single endpoint</td></tr>
+                <tr><td>Fixed data structure</td><td>Flexible data structure</td></tr>
+                <tr><td>Over-fetching / Under-fetching</td><td>Ask for exactly what you need</td></tr>
+                <tr><td>Version-based (v1, v2)</td><td>Versionless evolution</td></tr>
+            </tbody>
+        </table>
+        <div class="note warn reveal" style="margin-top:24px;"><b>Note:</b> GraphQL is a query language for APIs, <b>not databases</b>!</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">07 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · COMMON PROBLEMS WITH REST ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">requests.md</div>
+        <div class="breadcrumb">lecture18 / <b>common-problems-with-rest</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three round trips vs. one</div>
+        <h2 class="title reveal">Common Problems <span class="hl">with REST</span></h2>
+        <div class="compare reveal">
+            <div>
+                <div class="compare-label bad">❌ REST: MULTIPLE REQUESTS</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">rest-calls.http</div>
+                    <pre><span class="tok-fn">GET</span> /users/1
+  <span class="tok-op">→</span> <span class="tok-pun">{</span> id<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span> name<span class="tok-pun">:</span> <span class="tok-str">"Alice"</span> <span class="tok-pun">}</span>
+
+<span class="tok-fn">GET</span> /users/1/posts
+  <span class="tok-op">→</span> <span class="tok-pun">[{</span> id<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span> title<span class="tok-pun">:</span> <span class="tok-str">"..."</span> <span class="tok-pun">}, ...]</span>
+
+<span class="tok-fn">GET</span> /posts/1/comments
+  <span class="tok-op">→</span> <span class="tok-pun">[{</span> id<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">,</span> text<span class="tok-pun">:</span> <span class="tok-str">"..."</span> <span class="tok-pun">}, ...]</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="compare-label good">✅ GRAPHQL: ONE REQUEST, EXACT DATA</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">query.graphql</div>
+                    <pre><span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">user</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-num">1</span><span class="tok-pun">) {</span>
+    name
+    posts <span class="tok-pun">{</span>
+      title
+      comments <span class="tok-pun">{</span>
+        text
+      <span class="tok-pun">}</span>
+    <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">requests.md</div><div class="spacer"></div><div class="seg right">08 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · WHY GRAPHQL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why.md</div>
+        <div class="breadcrumb">lecture18 / <b>why-graphql</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the pitch, in six points</div>
+        <h2 class="title reveal">Why <span class="hl">GraphQL?</span></h2>
+        <ul class="list check reveal">
+            <li><strong>No Over-fetching</strong> — get only the fields you need</li>
+            <li><strong>No Under-fetching</strong> — get related data in one request</li>
+            <li><strong>Strongly Typed</strong> — schema defines what's possible</li>
+            <li><strong>Introspection</strong> — clients can discover API capabilities</li>
+            <li><strong>Developer Experience</strong> — excellent tooling (Apollo Studio, GraphiQL)</li>
+            <li><strong>Evolutionary</strong> — add fields without breaking existing queries</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why.md</div><div class="spacer"></div><div class="seg right">09 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SECTION DIVIDER: CORE CONCEPTS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">typeDefs.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Core <span class="hl">Concepts</span></div>
+            <div class="by" style="margin-top:18px;">query, mutation, subscription, and the type system<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 11 · CORE CONCEPTS: QUERY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">query.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>core-concepts-query</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reading data, like GET in REST</div>
+        <h2 class="title reveal">Core Concepts: <span class="hl">Query</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:10px;"><strong style="color:var(--cyan);">Queries</strong> are for <strong>reading</strong> data.</p>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">all-users.graphql</div>
+                <pre><span class="tok-com"># Get all users</span>
+<span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  users <span class="tok-pun">{</span>
+    id
+    username
+    email
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">user-with-posts.graphql</div>
+                <pre><span class="tok-com"># Get specific user with posts</span>
+<span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">user</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-str">"1"</span><span class="tok-pun">) {</span>
+    username
+    posts <span class="tok-pun">{</span> id title <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">query.graphql</div><div class="spacer"></div><div class="seg right">11 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 12 · CORE CONCEPTS: MUTATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mutation.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>core-concepts-mutation</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">modifying data, like POST/PUT/DELETE</div>
+        <h2 class="title reveal">Core Concepts: <span class="hl">Mutation</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/schema/typeDefs.js (createReview)</div>
+        <p class="lead-in reveal" style="margin-bottom:12px;"><strong style="color:var(--orange);">Mutations</strong> are for <strong>modifying</strong> data.</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">create-user.graphql</div>
+            <pre><span class="tok-gql">mutation</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">createUser</span><span class="tok-pun">(</span>input<span class="tok-pun">: {</span> username<span class="tok-pun">:</span> <span class="tok-str">"alice"</span><span class="tok-pun">,</span> email<span class="tok-pun">:</span> <span class="tok-str">"alice@example.com"</span><span class="tok-pun">,</span> password<span class="tok-pun">:</span> <span class="tok-str">"secret123"</span> <span class="tok-pun">}) {</span>
+    id
+    username
+    email
+    createdAt
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mutation.graphql</div><div class="spacer"></div><div class="seg right">12 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · CORE CONCEPTS: SUBSCRIPTION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">subscription.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>core-concepts-subscription</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">real-time updates via WebSocket</div>
+        <h2 class="title reveal">Core Concepts: <span class="hl">Subscription</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/resolvers/index.js (reviewAdded)</div>
+        <p class="lead-in reveal" style="margin-bottom:12px;"><strong style="color:var(--teal);">Subscriptions</strong> are for <strong>real-time</strong> updates.</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">subscription.graphql</div>
+            <pre><span class="tok-gql">subscription</span> <span class="tok-pun">{</span>
+  newPost <span class="tok-pun">{</span>
+    id
+    title
+    author <span class="tok-pun">{</span> username <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:12px;"><b>Live demo:</b> ReelTalk's <code class="icode">reviewAdded(movieId)</code> subscription pushes new reviews to every client viewing that movie — post a review in one tab, watch it appear live in another. Lecture 20 rebuilds this with raw WebSocket to see what Subscription abstracts away.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">subscription.graphql</div><div class="spacer"></div><div class="seg right">13 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · TYPE SYSTEM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">schema.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>type-system</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the contract your API guarantees</div>
+        <h2 class="title reveal">Type <span class="hl">System</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:10px;">GraphQL has a <strong style="color:var(--cyan);">strongly-typed schema</strong> that defines your API:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">schema.graphql</div>
+            <pre><span class="tok-kw">type</span> <span class="tok-cls">User</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span>              <span class="tok-com"># ! means required</span>
+  username<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  email<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  posts<span class="tok-pun">: [</span><span class="tok-cls">Post</span><span class="tok-op">!</span><span class="tok-pun">]!</span>      <span class="tok-com"># Array of Post objects</span>
+  createdAt<span class="tok-pun">:</span> <span class="tok-cls">DateTime</span>
+<span class="tok-pun">}</span>
+<span class="tok-kw">type</span> <span class="tok-cls">Post</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span>
+  title<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  content<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  author<span class="tok-pun">:</span> <span class="tok-cls">User</span><span class="tok-op">!</span>        <span class="tok-com"># Relationship to User</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">schema.graphql</div><div class="spacer"></div><div class="seg right">14 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · SCALAR TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">scalars.md</div>
+        <div class="breadcrumb">lecture18 / <b>scalar-types</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the leaves of every schema</div>
+        <h2 class="title reveal">Scalar <span class="hl">Types</span></h2>
+        <div class="cols reveal">
+            <div class="col-card accent-blue">
+                <h3>Built-in Scalars</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">String</code> — UTF-8 text</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">Int</code> — 32-bit integer</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">Float</code> — signed double-precision</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">Boolean</code> — true or false</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">ID</code> — unique identifier (serialized as String)</li>
+                </ul>
+            </div>
+            <div class="col-card accent-purple">
+                <h3>Custom Scalars</h3>
+                <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">DateTime</code> — ISO 8601 date-time</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">Email</code> — email address validation</li>
+                    <li style="font-size:19px;color:var(--fg-dim);"><code class="icode">URL</code> — valid URLs</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">scalars.md</div><div class="spacer"></div><div class="seg right">15 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · OBJECT TYPES AND INPUT TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">types.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>object-and-input-types</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">shaping data in and data out</div>
+        <h2 class="title reveal" style="font-size:58px;">Object Types <span class="hl">&amp; Input Types</span></h2>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">Object fields (with arguments)</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">object.graphql</div>
+                    <pre><span class="tok-kw">type</span> <span class="tok-cls">User</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span>
+  username<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  profile<span class="tok-pun">:</span> <span class="tok-cls">UserProfile</span>  <span class="tok-com"># relationship</span>
+  posts<span class="tok-pun">(</span>status<span class="tok-pun">:</span> <span class="tok-cls">PostStatus</span><span class="tok-pun">,</span> limit<span class="tok-pun">:</span> <span class="tok-cls">Int</span><span class="tok-pun">):</span> <span class="tok-pun">[</span><span class="tok-cls">Post</span><span class="tok-op">!</span><span class="tok-pun">]!</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--orange);font-weight:700;margin-bottom:8px;">Input types (complex mutation args)</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">input.graphql</div>
+                    <pre><span class="tok-kw">input</span> <span class="tok-cls">CreateUserInput</span> <span class="tok-pun">{</span>
+  username<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  email<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+  password<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-gql">mutation</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">createUser</span><span class="tok-pun">(</span>input<span class="tok-pun">: {</span> username<span class="tok-pun">:</span> <span class="tok-str">"bob"</span><span class="tok-pun">,</span> email<span class="tok-pun">:</span> <span class="tok-str">"bob@x.com"</span><span class="tok-pun">,</span> password<span class="tok-pun">:</span> <span class="tok-str">"pass123"</span> <span class="tok-pun">}) {</span> id username <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">types.graphql</div><div class="spacer"></div><div class="seg right">16 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · SECTION DIVIDER: SCHEMA & RESOLVERS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">resolvers/index.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Schema <span class="hl">&amp; Resolvers</span></div>
+            <div class="by" style="margin-top:18px;">defining operations, then implementing them<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 18 · DEFINING A SCHEMA ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">schema.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>defining-a-schema</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">three root types, one contract</div>
+        <h2 class="title reveal">Defining a <span class="hl">Schema</span></h2>
+        <div class="cols c3 reveal">
+            <div class="col-card accent-blue">
+                <h3>Query</h3>
+                <div class="codeblock xs" style="margin:0;">
+                    <pre style="font-size:14px;padding:14px 16px;line-height:1.5;"><span class="tok-kw">type</span> <span class="tok-cls">Query</span> <span class="tok-pun">{</span>
+  users<span class="tok-pun">(</span>limit<span class="tok-pun">:</span> <span class="tok-cls">Int</span><span class="tok-pun">): [</span><span class="tok-cls">User</span><span class="tok-op">!</span><span class="tok-pun">]!</span>
+  <span class="tok-fn">user</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span><span class="tok-pun">):</span> <span class="tok-cls">User</span>
+  me<span class="tok-pun">:</span> <span class="tok-cls">User</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div class="col-card accent-orange">
+                <h3>Mutation</h3>
+                <div class="codeblock xs" style="margin:0;">
+                    <pre style="font-size:14px;padding:14px 16px;line-height:1.5;"><span class="tok-kw">type</span> <span class="tok-cls">Mutation</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">register</span><span class="tok-pun">(</span>input<span class="tok-pun">:</span> <span class="tok-cls">CreateUserInput</span><span class="tok-op">!</span><span class="tok-pun">):</span> <span class="tok-cls">AuthResult</span><span class="tok-op">!</span>
+  <span class="tok-fn">createPost</span><span class="tok-pun">(...):</span> <span class="tok-cls">Post</span><span class="tok-op">!</span>
+  <span class="tok-fn">deletePost</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span><span class="tok-pun">):</span> <span class="tok-cls">Boolean</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div class="col-card accent-teal">
+                <h3>Subscription</h3>
+                <div class="codeblock xs" style="margin:0;">
+                    <pre style="font-size:14px;padding:14px 16px;line-height:1.5;"><span class="tok-kw">type</span> <span class="tok-cls">Subscription</span> <span class="tok-pun">{</span>
+  postCreated<span class="tok-pun">:</span> <span class="tok-cls">Post</span><span class="tok-op">!</span>
+  <span class="tok-fn">postUpdated</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span><span class="tok-pun">):</span> <span class="tok-cls">Post</span><span class="tok-op">!</span>
+  <span class="tok-fn">commentAdded</span><span class="tok-pun">(...):</span> <span class="tok-cls">Comment</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;"><b>Query</b> defines reads, <b>Mutation</b> defines writes, <b>Subscription</b> defines real-time events — every operation your API supports must appear in one of these three root types.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">schema.graphql</div><div class="spacer"></div><div class="seg right">18 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · RESOLVERS: THE 4 PARAMETERS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">resolvers.js</div>
+        <div class="breadcrumb">lecture18 / <b>resolvers-the-4-parameters</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the function behind every field</div>
+        <h2 class="title reveal">Resolvers: <span class="hl">The 4 Parameters</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;">Resolvers are functions that return values for fields:</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">resolvers.js</div>
+            <pre><span class="tok-kw">const</span> resolvers <span class="tok-op">=</span> <span class="tok-pun">{</span>
+  <span class="tok-cls">Query</span><span class="tok-pun">: {</span>
+    user<span class="tok-pun">: (</span>parent<span class="tok-pun">,</span> args<span class="tok-pun">,</span> context<span class="tok-pun">,</span> info<span class="tok-pun">) =&gt; {</span>
+      <span class="tok-com">// parent: result from parent resolver</span>
+      <span class="tok-com">// args: { id: "1" } - field arguments</span>
+      <span class="tok-com">// context: shared data (user, db, pubsub)</span>
+      <span class="tok-com">// info: query metadata (rarely used)</span>
+      <span class="tok-kw">return</span> context<span class="tok-pun">.</span>db<span class="tok-pun">.</span><span class="tok-fn">getUserById</span><span class="tok-pun">(</span>args<span class="tok-pun">.</span>id<span class="tok-pun">);</span>
+    <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">};</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">resolvers.js</div><div class="spacer"></div><div class="seg right">19 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · RESOLVER EXAMPLE & CONTEXT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">resolvers.js</div>
+        <div class="breadcrumb">lecture18 / <b>resolver-example-and-context</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">nested resolvers + per-request shared data</div>
+        <h2 class="title reveal">Resolver Example <span class="hl">&amp; Context</span></h2>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">Resolvers can nest per-field</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">resolvers.js</div>
+                    <pre><span class="tok-kw">const</span> resolvers <span class="tok-op">=</span> <span class="tok-pun">{</span>
+  <span class="tok-cls">Query</span><span class="tok-pun">: {</span>
+    users<span class="tok-pun">: (</span>_<span class="tok-pun">, {</span> limit<span class="tok-pun">,</span> offset <span class="tok-pun">},</span> ctx<span class="tok-pun">) =&gt;</span>
+      ctx<span class="tok-pun">.</span>db<span class="tok-pun">.</span><span class="tok-fn">getUsers</span><span class="tok-pun">(</span>limit<span class="tok-pun">,</span> offset<span class="tok-pun">),</span>
+  <span class="tok-pun">},</span>
+  <span class="tok-cls">User</span><span class="tok-pun">: {</span>
+    <span class="tok-com">// Nested resolver for User.posts field</span>
+    posts<span class="tok-pun">: (</span>parent<span class="tok-pun">,</span> _<span class="tok-pun">,</span> ctx<span class="tok-pun">) =&gt;</span>
+      ctx<span class="tok-pun">.</span>db<span class="tok-pun">.</span><span class="tok-fn">getPostsByAuthor</span><span class="tok-pun">(</span>parent<span class="tok-pun">.</span>id<span class="tok-pun">),</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">};</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--orange);font-weight:700;margin-bottom:8px;">Context: created per-request, shared everywhere</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">context.js</div>
+                    <pre><span class="tok-kw">const</span> createContext <span class="tok-op">=</span> <span class="tok-kw">async</span> <span class="tok-pun">({</span> req <span class="tok-pun">}) =&gt; {</span>
+  <span class="tok-kw">const</span> token <span class="tok-op">=</span> req<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>authorization
+    <span class="tok-op">?.</span><span class="tok-fn">replace</span><span class="tok-pun">(</span><span class="tok-str">'Bearer '</span><span class="tok-pun">,</span> <span class="tok-str">''</span><span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> currentUser <span class="tok-op">=</span> token
+    <span class="tok-op">?</span> <span class="tok-kw">await</span> <span class="tok-fn">verifyToken</span><span class="tok-pun">(</span>token<span class="tok-pun">)</span> <span class="tok-op">:</span> <span class="tok-kw">null</span><span class="tok-pun">;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">{</span> currentUser<span class="tok-pun">,</span> db<span class="tok-pun">:</span> database<span class="tok-pun">,</span> pubsub <span class="tok-pun">};</span>
+<span class="tok-pun">};</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">resolvers.js</div><div class="spacer"></div><div class="seg right">20 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · SECTION DIVIDER: PAGINATION & N+1 ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">reviewStatsLoader.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 4</span></div>
+            <div class="sectitle">Pagination <span class="hl">&amp; N+1</span></div>
+            <div class="by" style="margin-top:18px;">scaling GraphQL past a toy example<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 22 · CURSOR-BASED PAGINATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">pagination.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>cursor-based-pagination</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 24px;">
+        <div class="kicker reveal">relay-style connections</div>
+        <h2 class="title reveal" style="font-size:52px;margin-bottom:8px;">Cursor-Based <span class="hl">Pagination</span></h2>
+        <div class="filemark reveal" style="margin-bottom:8px;">reeltalk-api/src/resolvers/index.js</div>
+        <div class="split reveal" style="gap:32px;">
+            <div class="codeblock xs">
+                <div class="cb-bar">connection.graphql</div>
+                <pre><span class="tok-kw">type</span> <span class="tok-cls">MovieConnection</span> <span class="tok-pun">{</span>
+  edges<span class="tok-pun">: [</span><span class="tok-cls">MovieEdge</span><span class="tok-op">!</span><span class="tok-pun">]!</span>
+  pageInfo<span class="tok-pun">:</span> <span class="tok-cls">PageInfo</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span>
+<span class="tok-kw">type</span> <span class="tok-cls">MovieEdge</span> <span class="tok-pun">{</span> cursor<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span> node<span class="tok-pun">:</span> <span class="tok-cls">Movie</span><span class="tok-op">!</span> <span class="tok-pun">}</span>
+<span class="tok-kw">type</span> <span class="tok-cls">PageInfo</span> <span class="tok-pun">{</span>
+  hasNextPage<span class="tok-pun">:</span> <span class="tok-cls">Boolean</span><span class="tok-op">!</span>
+  endCursor<span class="tok-pun">:</span> <span class="tok-cls">String</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">movies</span><span class="tok-pun">(</span>first<span class="tok-pun">:</span> <span class="tok-num">6</span><span class="tok-pun">,</span> after<span class="tok-pun">:</span> <span class="tok-str">"m6"</span><span class="tok-pun">) {</span>
+    edges <span class="tok-pun">{</span> cursor node <span class="tok-pun">{</span> title <span class="tok-pun">} }</span>
+    pageInfo <span class="tok-pun">{</span> hasNextPage endCursor <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+            </div>
+            <div class="reveal" style="display:flex;align-items:center;">
+            <svg viewBox="0 0 620 380" width="100%" height="380" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="cp-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+              </defs>
+              <text x="310" y="26" text-anchor="middle" font-family="JetBrains Mono" font-size="15" font-weight="700" fill="#9aa5ce">movies(first: 6, after: "m6")</text>
+              <rect x="10" y="50" width="90" height="46" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+              <text x="55" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">m1..m5</text>
+              <rect x="110" y="50" width="60" height="46" rx="6" fill="#1f2335" stroke="#e0af68" stroke-width="2.5"/>
+              <text x="140" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#e0af68">m6</text>
+              <text x="140" y="112" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#e0af68">cursor</text>
+
+              <path d="M170,73 L200,73" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#cp-a)"/>
+
+              <rect x="210" y="50" width="360" height="46" rx="6" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+              <text x="390" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#9ece6a">m7, m8, m9, m10, m11, m12</text>
+              <text x="390" y="112" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9ece6a">next 6 returned</text>
+
+              <text x="310" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#f7768e">If m3 is deleted mid-list...</text>
+              <rect x="10" y="200" width="60" height="46" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+              <text x="40" y="228" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">m1</text>
+              <rect x="80" y="200" width="60" height="46" rx="6" fill="#1f2335" stroke="#f7768e" stroke-width="2" stroke-dasharray="4 4"/>
+              <text x="110" y="228" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#f7768e">m3 ✕</text>
+              <rect x="150" y="200" width="60" height="46" rx="6" fill="#1f2335" stroke="#565f89" stroke-width="2"/>
+              <text x="180" y="228" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">m4</text>
+
+              <text x="310" y="290" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9ece6a">✓ cursor "m6" still points to the same movie</text>
+              <text x="310" y="315" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#f7768e">✕ offset 6 would now point to the wrong movie</text>
+            </svg>
+            </div>
+        </div>
+        <div class="note reveal" style="margin-top:4px;">Cursors are more robust than <code class="icode">offset</code>/<code class="icode">limit</code> — inserting or deleting items elsewhere in the list doesn't shift everyone else's pagination.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">pagination.graphql</div><div class="spacer"></div><div class="seg right">22 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · THE N+1 PROBLEM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">reviewStats.js</div>
+        <div class="breadcrumb">lecture18 / <b>the-n-plus-1-problem</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">invisible until you fetch a list</div>
+        <h2 class="title reveal">The <span class="hl">N+1</span> Problem</h2>
+        <div class="filemark reveal">reeltalk-api/src/resolvers/reviewStatsLoader.js</div>
+        <p class="lead-in reveal" style="margin-bottom:10px;">A naive resolver for a relationship field often queries once <em style="color:var(--orange);">per parent</em> — 20 movies = 1 query for the list + 20 queries for reviews:</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">reviewStats.js</div>
+            <pre><span class="tok-cls">Movie</span><span class="tok-pun">: {</span>
+  reviewStats<span class="tok-pun">: (</span>movie<span class="tok-pun">) =&gt; {</span> <span class="tok-com">// ❌ runs once PER movie</span>
+    <span class="tok-kw">const</span> movieReviews <span class="tok-op">=</span> reviews<span class="tok-pun">.</span><span class="tok-fn">filter</span><span class="tok-pun">(</span>r <span class="tok-op">=&gt;</span> r<span class="tok-pun">.</span>movieId <span class="tok-op">===</span> movie<span class="tok-pun">.</span>id<span class="tok-pun">);</span>
+    <span class="tok-kw">return</span> <span class="tok-fn">computeStats</span><span class="tok-pun">(</span>movieReviews<span class="tok-pun">);</span> <span class="tok-com">// 20 movies = 20 lookups</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">This is invisible in a query returning one movie. It only shows up once you fetch a <b>list</b> — exactly why it's easy to miss in development and painful in production.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">reviewStats.js</div><div class="spacer"></div><div class="seg right">23 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 24 · SOLVING N+1 WITH DATALOADER ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">reviewStatsLoader.js</div>
+        <div class="breadcrumb">lecture18 / <b>solving-n-plus-1-with-dataloader</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 24px;">
+        <div class="kicker reveal">batch every .load() call in one tick</div>
+        <h2 class="title reveal" style="font-size:52px;margin-bottom:10px;">Solving N+1 with <span class="hl">DataLoader</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 300" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="dl-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#f7768e"/></marker>
+            <marker id="dl-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#9ece6a"/></marker>
+          </defs>
+          <text x="380" y="26" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#f7768e">❌ Without DataLoader</text>
+          <rect x="30" y="50" width="140" height="44" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="100" y="77" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#7aa2f7">20 movies</text>
+          <path d="M170,72 L230,72" stroke="#f7768e" stroke-width="2" fill="none" marker-end="url(#dl-a)"/>
+          <rect x="240" y="45" width="480" height="56" rx="6" fill="#1f2335" stroke="#f7768e" stroke-width="2" stroke-dasharray="4 4"/>
+          <text x="480" y="66" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#f7768e">20 separate DB lookups</text>
+          <text x="480" y="86" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#9aa5ce">one per Movie.reviewStats() call</text>
+
+          <text x="380" y="150" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">✅ With DataLoader</text>
+          <rect x="30" y="175" width="140" height="44" rx="6" fill="#1f2335" stroke="#7aa2f7" stroke-width="2"/>
+          <text x="100" y="202" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#7aa2f7">20 movies</text>
+          <path d="M170,197 L230,197" stroke="#9ece6a" stroke-width="2" fill="none" marker-end="url(#dl-b)"/>
+          <rect x="240" y="170" width="220" height="56" rx="6" fill="#1f2335" stroke="#e0af68" stroke-width="2"/>
+          <text x="350" y="192" text-anchor="middle" font-family="JetBrains Mono" font-size="12" font-weight="700" fill="#e0af68">20× .load(movieId)</text>
+          <text x="350" y="210" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#9aa5ce">collected within one tick</text>
+          <path d="M460,197 L520,197" stroke="#9ece6a" stroke-width="2" fill="none" marker-end="url(#dl-b)"/>
+          <rect x="530" y="170" width="240" height="56" rx="6" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="650" y="192" text-anchor="middle" font-family="JetBrains Mono" font-size="13" font-weight="700" fill="#9ece6a">ONE batched query</text>
+          <text x="650" y="210" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#9aa5ce">all 20 ids at once</text>
+
+          <text x="1150" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#565f89">created fresh per-request — sharing across requests leaks cached data</text>
+        </svg>
+        </div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">reviewStatsLoader.js</div>
+            <pre><span class="tok-kw">function</span> <span class="tok-fn">createReviewStatsLoader</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">return new</span> <span class="tok-cls">DataLoader</span><span class="tok-pun">(</span><span class="tok-kw">async</span> <span class="tok-pun">(</span>movieIds<span class="tok-pun">) =&gt;</span>
+    movieIds<span class="tok-pun">.</span><span class="tok-fn">map</span><span class="tok-pun">(</span>id <span class="tok-op">=&gt;</span> <span class="tok-fn">computeStats</span><span class="tok-pun">(</span>reviews<span class="tok-pun">.</span><span class="tok-fn">filter</span><span class="tok-pun">(</span>r <span class="tok-op">=&gt;</span> r<span class="tok-pun">.</span>movieId <span class="tok-op">===</span> id<span class="tok-pun">))));</span>
+<span class="tok-pun">}</span>
+<span class="tok-com">// resolver: Movie: { reviewStats: (movie, _args, ctx) =&gt; ctx.reviewStatsLoader.load(movie.id) }</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">reviewStatsLoader.js</div><div class="spacer"></div><div class="seg right">24 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · SECTION DIVIDER: ADVANCED TYPES & SECURITY ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">auth.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 5</span></div>
+            <div class="sectitle">Advanced Types <span class="hl">&amp; Security</span></div>
+            <div class="by" style="margin-top:18px;">fragments, interfaces, unions, errors, auth<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 26 · FRAGMENTS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">fragments.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>advanced-fragments</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reusable field selections</div>
+        <h2 class="title reveal">Advanced: <span class="hl">Fragments</span></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">fragments.graphql</div>
+            <pre><span class="tok-kw">fragment</span> <span class="tok-cls">UserFields</span> <span class="tok-kw">on</span> <span class="tok-cls">User</span> <span class="tok-pun">{</span>
+  id
+  username
+  email
+<span class="tok-pun">}</span>
+
+<span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  alice<span class="tok-pun">:</span> <span class="tok-fn">user</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-str">"1"</span><span class="tok-pun">) {</span> <span class="tok-pun">...</span><span class="tok-cls">UserFields</span> <span class="tok-pun">}</span>
+  bob<span class="tok-pun">:</span> <span class="tok-fn">user</span><span class="tok-pun">(</span>id<span class="tok-pun">:</span> <span class="tok-str">"2"</span><span class="tok-pun">) {</span> <span class="tok-pun">...</span><span class="tok-cls">UserFields</span> <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">fragments.graphql</div><div class="spacer"></div><div class="seg right">25 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · INTERFACES & UNION TYPES ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">interfaces.graphql</div>
+        <div class="breadcrumb">lecture18 / <b>interfaces-and-unions</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">shared shape vs. multiple possible shapes</div>
+        <h2 class="title reveal">Advanced: Interfaces <span class="hl">&amp; Unions</span></h2>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">Interfaces — shared fields across types</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">interfaces.graphql</div>
+                    <pre><span class="tok-kw">interface</span> <span class="tok-cls">Node</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span>
+  createdAt<span class="tok-pun">:</span> <span class="tok-cls">DateTime</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span>
+
+<span class="tok-kw">type</span> <span class="tok-cls">User</span> <span class="tok-kw">implements</span> <span class="tok-cls">Node</span> <span class="tok-pun">{</span>
+  id<span class="tok-pun">:</span> <span class="tok-cls">ID</span><span class="tok-op">!</span>
+  createdAt<span class="tok-pun">:</span> <span class="tok-cls">DateTime</span><span class="tok-op">!</span>
+  username<span class="tok-pun">:</span> <span class="tok-cls">String</span><span class="tok-op">!</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--purple);font-weight:700;margin-bottom:8px;">Unions — multiple possible return types</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">unions.graphql</div>
+                    <pre><span class="tok-kw">union</span> <span class="tok-cls">SearchResult</span> <span class="tok-op">=</span> <span class="tok-cls">User</span> <span class="tok-op">|</span> <span class="tok-cls">Post</span>
+
+<span class="tok-gql">query</span> <span class="tok-pun">{</span>
+  <span class="tok-fn">search</span><span class="tok-pun">(</span>query<span class="tok-pun">:</span> <span class="tok-str">"graphql"</span><span class="tok-pun">) {</span>
+    __typename
+    <span class="tok-pun">...</span> <span class="tok-kw">on</span> <span class="tok-cls">User</span> <span class="tok-pun">{</span> username <span class="tok-pun">}</span>
+    <span class="tok-pun">...</span> <span class="tok-kw">on</span> <span class="tok-cls">Post</span> <span class="tok-pun">{</span> title <span class="tok-pun">}</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">interfaces.graphql</div><div class="spacer"></div><div class="seg right">27 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 28 · ERROR HANDLING & AUTHENTICATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">auth.js</div>
+        <div class="breadcrumb">lecture18 / <b>error-handling-and-auth</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">data and errors, together</div>
+        <h2 class="title reveal" style="font-size:56px;">Error Handling <span class="hl">&amp; Authentication</span></h2>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">GraphQL returns BOTH data and errors</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">response.json</div>
+                    <pre><span class="tok-pun">{</span>
+  <span class="tok-str">"data"</span><span class="tok-pun">: {</span> <span class="tok-str">"user"</span><span class="tok-pun">:</span> <span class="tok-kw">null</span> <span class="tok-pun">},</span>
+  <span class="tok-str">"errors"</span><span class="tok-pun">: [{</span>
+    <span class="tok-str">"message"</span><span class="tok-pun">:</span> <span class="tok-str">"User not found"</span><span class="tok-pun">,</span>
+    <span class="tok-str">"extensions"</span><span class="tok-pun">: {</span> <span class="tok-str">"code"</span><span class="tok-pun">:</span> <span class="tok-str">"NOT_FOUND"</span> <span class="tok-pun">},</span>
+    <span class="tok-str">"path"</span><span class="tok-pun">: [</span><span class="tok-str">"user"</span><span class="tok-pun">]</span>
+  <span class="tok-pun">}]</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--orange);font-weight:700;margin-bottom:8px;">Require authentication in resolvers</p>
+                <div class="codeblock xs">
+                    <div class="cb-bar">auth.js</div>
+                    <pre><span class="tok-cls">Mutation</span><span class="tok-pun">: {</span>
+  <span class="tok-fn">createPost</span><span class="tok-pun">(</span>_<span class="tok-pun">, {</span> input <span class="tok-pun">},</span> ctx<span class="tok-pun">) {</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(!</span>ctx<span class="tok-pun">.</span>currentUser<span class="tok-pun">) {</span>
+      <span class="tok-kw">throw new</span> <span class="tok-cls">GraphQLError</span><span class="tok-pun">(</span>
+        <span class="tok-str">'Not authenticated'</span><span class="tok-pun">, {</span>
+          extensions<span class="tok-pun">: {</span> code<span class="tok-pun">:</span> <span class="tok-str">'UNAUTHENTICATED'</span> <span class="tok-pun">}</span>
+        <span class="tok-pun">});</span>
+    <span class="tok-pun">}</span>
+    <span class="tok-kw">return</span> <span class="tok-fn">createPost</span><span class="tok-pun">(</span>input<span class="tok-pun">,</span> ctx<span class="tok-pun">.</span>currentUser<span class="tok-pun">);</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">},</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">auth.js</div><div class="spacer"></div><div class="seg right">28 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 29 · SECTION DIVIDER: SERVER & CLIENT ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">apolloClient.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture18</span> <span class="cmd">$ // Part 6</span></div>
+            <div class="sectitle">Server <span class="hl">&amp; Client</span></div>
+            <div class="by" style="margin-top:18px;">Apollo Server setup, Apollo Client in React<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 30 · GRAPHQL SERVER: OPTIONS & APOLLO SETUP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">index.ts</div>
+        <div class="breadcrumb">lecture18 / <b>graphql-server-setup</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">picking and standing up a server</div>
+        <h2 class="title reveal">GraphQL <span class="hl">Server</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong style="color:var(--cyan);">Apollo Server</strong> — full-featured, production-ready</li>
+                    <li class="sub">subscriptions, plugins, caching</li>
+                    <li><strong>GraphQL.js</strong> — reference implementation, lower-level</li>
+                    <li><strong>GraphQL Yoga</strong> — lightweight alternative</li>
+                </ul>
+            </div>
+            <div class="codeblock xs">
+                <div class="cb-bar">index.ts</div>
+                <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> ApolloServer <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'@apollo/server'</span><span class="tok-pun">;</span>
+<span class="tok-kw">import</span> <span class="tok-pun">{</span> startStandaloneServer <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'@apollo/server/standalone'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">const</span> server <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">ApolloServer</span><span class="tok-pun">({</span> typeDefs<span class="tok-pun">,</span> resolvers <span class="tok-pun">});</span>
+
+<span class="tok-kw">const</span> <span class="tok-pun">{</span> url <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">startStandaloneServer</span><span class="tok-pun">(</span>server<span class="tok-pun">, {</span>
+  listen<span class="tok-pun">: {</span> port<span class="tok-pun">:</span> <span class="tok-num">4000</span> <span class="tok-pun">},</span>
+  context<span class="tok-pun">:</span> <span class="tok-kw">async</span> <span class="tok-pun">({</span> req <span class="tok-pun">}) =&gt; ({</span>
+    currentUser<span class="tok-pun">:</span> <span class="tok-kw">await</span> <span class="tok-fn">getUserFromToken</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>authorization<span class="tok-pun">)</span>
+  <span class="tok-pun">}),</span>
+<span class="tok-pun">});</span>
+console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">`Server ready at ${</span>url<span class="tok-str">}`</span><span class="tok-pun">);</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">index.ts</div><div class="spacer"></div><div class="seg right">30 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 31 · GRAPHQL CLIENT: OPTIONS & APOLLO SETUP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">apolloClient.js</div>
+        <div class="breadcrumb">lecture18 / <b>graphql-client-setup</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">picking and configuring a client</div>
+        <h2 class="title reveal">GraphQL <span class="hl">Client</span></h2>
+        <div class="split reveal">
+            <div>
+                <ul class="list">
+                    <li><strong style="color:var(--cyan);">Apollo Client</strong> — most popular, feature-rich</li>
+                    <li class="sub">intelligent caching, React integration, subscriptions</li>
+                    <li><strong>Relay</strong> — Facebook's client, optimized for performance</li>
+                    <li><strong>URQL</strong> — lightweight alternative</li>
+                    <li><strong>graphql-request</strong> — minimal client</li>
+                </ul>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">apolloClient.js</div>
+                <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> ApolloClient<span class="tok-pun">,</span> InMemoryCache<span class="tok-pun">,</span> HttpLink <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'@apollo/client'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">const</span> client <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">ApolloClient</span><span class="tok-pun">({</span>
+  link<span class="tok-pun">:</span> <span class="tok-kw">new</span> <span class="tok-cls">HttpLink</span><span class="tok-pun">({</span>
+    uri<span class="tok-pun">:</span> <span class="tok-str">'http://localhost:4000/graphql'</span><span class="tok-pun">,</span>
+  <span class="tok-pun">}),</span>
+  cache<span class="tok-pun">:</span> <span class="tok-kw">new</span> <span class="tok-cls">InMemoryCache</span><span class="tok-pun">(),</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">apolloClient.js</div><div class="spacer"></div><div class="seg right">31 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 32 · APOLLO CLIENT: USEQUERY & USEMUTATION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">MovieList.jsx</div>
+        <div class="breadcrumb">lecture18 / <b>usequery-and-usemutation</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reading and writing from components</div>
+        <h2 class="title reveal">Apollo Client: <code style="font-family:inherit;">useQuery</code> <span class="hl">&amp; useMutation</span></h2>
+        <div class="split reveal">
+            <div>
+                <div class="filemark" style="margin-bottom:10px;">reeltalk/src/components/MovieList.jsx</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">MovieList.jsx</div>
+                    <pre><span class="tok-kw">const</span> GET_USERS <span class="tok-op">=</span> <span class="tok-fn">gql</span><span class="tok-str">`
+  query { users { id username } }
+`</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">UserList</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> loading<span class="tok-pun">,</span> error<span class="tok-pun">,</span> data <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useQuery</span><span class="tok-pun">(</span>GET_USERS<span class="tok-pun">);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>loading<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Loading...<span class="tok-pun">&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>error<span class="tok-pun">)</span> <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Error: <span class="tok-pun">{</span>error<span class="tok-pun">.</span>message<span class="tok-pun">}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;{</span>data<span class="tok-pun">.</span>users<span class="tok-pun">.</span><span class="tok-fn">map</span><span class="tok-pun">(</span>u <span class="tok-op">=&gt;</span> <span class="tok-pun">&lt;</span><span class="tok-tag">li</span> <span class="tok-attr">key</span><span class="tok-op">=</span><span class="tok-pun">{</span>u<span class="tok-pun">.</span>id<span class="tok-pun">}&gt;{</span>u<span class="tok-pun">.</span>username<span class="tok-pun">}&lt;/</span><span class="tok-tag">li</span><span class="tok-pun">&gt;)}&lt;/</span><span class="tok-tag">ul</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+            <div>
+                <div class="filemark" style="margin-bottom:10px;">reeltalk/src/components/ReviewForm.jsx</div>
+                <div class="codeblock xs">
+                    <div class="cb-bar">ReviewForm.jsx</div>
+                    <pre><span class="tok-kw">const</span> CREATE_POST <span class="tok-op">=</span> <span class="tok-fn">gql</span><span class="tok-str">`
+  mutation CreatePost($input: CreatePostInput!) {
+    createPost(input: $input) { id title }
+  }
+`</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">function</span> <span class="tok-fn">CreatePost</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>createPost<span class="tok-pun">, {</span> loading <span class="tok-pun">}]</span> <span class="tok-op">=</span> <span class="tok-fn">useMutation</span><span class="tok-pun">(</span>CREATE_POST<span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> handleSubmit <span class="tok-op">=</span> <span class="tok-kw">async</span> <span class="tok-pun">(</span>e<span class="tok-pun">) =&gt; {</span>
+    e<span class="tok-pun">.</span><span class="tok-fn">preventDefault</span><span class="tok-pun">();</span>
+    <span class="tok-kw">await</span> <span class="tok-fn">createPost</span><span class="tok-pun">({</span> variables<span class="tok-pun">: {</span> input<span class="tok-pun">: {</span> title<span class="tok-pun">,</span> content <span class="tok-pun">} } });</span>
+  <span class="tok-pun">};</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">form</span> <span class="tok-attr">onSubmit</span><span class="tok-op">=</span><span class="tok-pun">{</span>handleSubmit<span class="tok-pun">}&gt;...&lt;/</span><span class="tok-tag">form</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">MovieList.jsx</div><div class="spacer"></div><div class="seg right">32 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 33 · PRECISE CACHE UPDATES & USESUBSCRIPTION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">appendReview.js</div>
+        <div class="breadcrumb">lecture18 / <b>precise-cache-updates</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">beyond refetchQueries</div>
+        <h2 class="title reveal" style="font-size:52px;">Precise Cache Updates <span class="hl">(cache.modify)</span></h2>
+        <div class="filemark reveal">reeltalk/src/cache/appendReview.js</div>
+        <p class="lead-in reveal" style="margin-bottom:8px;font-size:19px;"><code class="icode">cache.modify</code> surgically updates just the affected fields, instead of re-fetching everything via <code class="icode">refetchQueries</code>:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">appendReview.js</div>
+            <pre><span class="tok-kw">const</span> <span class="tok-pun">[</span>createReview<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useMutation</span><span class="tok-pun">(</span>CREATE_REVIEW<span class="tok-pun">, {</span>
+  <span class="tok-fn">update</span><span class="tok-pun">(</span>cache<span class="tok-pun">, {</span> data <span class="tok-pun">}) {</span>
+    cache<span class="tok-pun">.</span><span class="tok-fn">modify</span><span class="tok-pun">({</span>
+      id<span class="tok-pun">:</span> cache<span class="tok-pun">.</span><span class="tok-fn">identify</span><span class="tok-pun">({</span> __typename<span class="tok-pun">:</span> <span class="tok-str">'Movie'</span><span class="tok-pun">,</span> id<span class="tok-pun">:</span> data<span class="tok-pun">.</span>createReview<span class="tok-pun">.</span>movieId <span class="tok-pun">}),</span>
+      fields<span class="tok-pun">: {</span> reviews<span class="tok-pun">(</span>existingRefs <span class="tok-op">=</span> <span class="tok-pun">[]) {</span>
+        <span class="tok-kw">const</span> newRef <span class="tok-op">=</span> cache<span class="tok-pun">.</span><span class="tok-fn">writeFragment</span><span class="tok-pun">({</span> data<span class="tok-pun">:</span> data<span class="tok-pun">.</span>createReview<span class="tok-pun">,</span> fragment<span class="tok-pun">:</span> REVIEW_FRAGMENT <span class="tok-pun">});</span>
+        <span class="tok-kw">return</span> <span class="tok-pun">[...</span>existingRefs<span class="tok-pun">,</span> newRef<span class="tok-pun">];</span>
+      <span class="tok-pun">} },</span>
+    <span class="tok-pun">});</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:10px;">⚠️ Field modifiers run in normalized-store order, not the order you write them. Resolve shared logic with a separate <code class="icode">cache.readFragment</code> call first.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">appendReview.js</div><div class="spacer"></div><div class="seg right">33 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 34 · USESUBSCRIPTION & TOOLS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">MovieDetail.jsx</div>
+        <div class="breadcrumb">lecture18 / <b>usesubscription-and-tools</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">closing the real-time loop</div>
+        <h2 class="title reveal">Apollo Client: <code style="font-family:inherit;">useSubscription</code></h2>
+        <div class="filemark reveal">reeltalk/src/components/MovieDetail.jsx</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">MovieDetail.jsx</div>
+            <pre><span class="tok-kw">const</span> POST_CREATED <span class="tok-op">=</span> <span class="tok-fn">gql</span><span class="tok-str">`
+  subscription OnPostCreated {
+    postCreated { id title }
+  }
+`</span><span class="tok-pun">;</span>
+<span class="tok-kw">function</span> <span class="tok-fn">PostFeed</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> data <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">useSubscription</span><span class="tok-pun">(</span>POST_CREATED<span class="tok-pun">, {</span>
+    onData<span class="tok-pun">: ({</span> data <span class="tok-pun">}) =&gt;</span> console<span class="tok-pun">.</span><span class="tok-fn">log</span><span class="tok-pun">(</span><span class="tok-str">'New post:'</span><span class="tok-pun">,</span> data<span class="tok-pun">),</span>
+  <span class="tok-pun">});</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>Latest: <span class="tok-pun">{</span>data<span class="tok-pun">?.</span>postCreated<span class="tok-pun">.</span>title<span class="tok-pun">}&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:12px;"><b>Tools:</b> Apollo Studio (GraphQL IDE + monitoring), GraphiQL (in-browser IDE), Postman (supports GraphQL). <b>Learn more:</b> graphql.org, howtographql.com, apollographql.com/docs.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">MovieDetail.jsx</div><div class="spacer"></div><div class="seg right">34 / 35</div></div>
+</div>
+</section>
+
+<!-- ============ 35 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture18</div>
+        <div class="breadcrumb">lecture18 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <ul class="list reveal">
+            <li>Query / Mutation / Subscription, type system, resolvers, context</li>
+            <li>GraphQL vs REST, and the over-/under-fetching problems it solves</li>
+            <li>Cursor-based pagination (Relay-style connections)</li>
+            <li>The N+1 problem and fixing it with a per-request DataLoader</li>
+            <li>Apollo Client: <code class="icode">useQuery</code>/<code class="icode">useMutation</code>/<code class="icode">useSubscription</code>, and precise <code class="icode">cache.modify</code> updates instead of <code class="icode">refetchQueries</code></li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;">🎬 <b>Live demo code:</b> <code class="icode">sample_code/lecture18/reeltalk</code> + <code class="icode">reeltalk-api</code> (App C, v0.1). Continues in Lecture 19 (SSR + Styling) and Lecture 20 (SSE/WebSocket).</div>
+        <div class="note reveal" style="margin-top:14px;">⏭️ <b>Next lecture:</b> Rendering Strategies, React Server Components &amp; Styling</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture18</div><div class="spacer"></div><div class="seg right">35 / 35</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture18-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture18.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

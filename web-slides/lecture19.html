@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 19 — Rendering Strategies, RSC &amp; Styling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–18) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🎬";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 19 ADDITIONS: theme-swatch demo === */
+.theme-swap { display:flex;gap:20px;align-items:center; }
+.theme-card { flex:1;border-radius:14px;padding:24px 26px;border:1px solid var(--border);display:flex;flex-direction:column;gap:10px; }
+.theme-card.dark  { background:#0b0b12;color:#f0f0f5; }
+.theme-card.light { background:#f5f5f7;color:#17171f; }
+.theme-card .tc-label { font-family:var(--font-mono);font-size:14px;opacity:0.6;text-transform:uppercase;letter-spacing:0.08em; }
+.theme-card .tc-title { font-family:var(--font-display);font-weight:800;font-size:22px; }
+.theme-card .tc-btn { align-self:flex-start;font-family:var(--font-mono);font-size:13px;padding:8px 16px;border-radius:8px;font-weight:700; }
+.theme-card.dark .tc-btn { background:rgba(224,179,76,0.15);color:#e0b34c; }
+.theme-card.light .tc-btn { background:rgba(169,122,31,0.12);color:#a97a1f; }
+.theme-swap-arrow { font-size:26px;color:var(--fg-faint); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">server.js <span class="dirty">— new</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ node src/server.js</span></div>
+            <div class="term-out">› Loading: SSR · hydration · RSC · CSS Modules</div>
+            <div class="section-num">Lecture 19</div>
+            <h1>Rendering Strategies <span class="hl">&amp; Styling</span></h1>
+            <div class="by">// CSR · SSR · SSG · RSC<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note ok reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟢 <b>Use AI freely.</b> The SSR harness and CSS Modules setup are pattern-based code. Focus on understanding WHY each rendering strategy exists and WHEN to reach for it — the actual wiring can be AI-generated.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">lecture19 / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li>CSR vs SSR vs SSG vs RSC — what problem each one solves</li>
+            <li>Hand-writing SSR with React 18 (<code class="icode">renderToPipeableStream</code> + <code class="icode">hydrateRoot</code>)</li>
+            <li>The hydration mismatch trap</li>
+            <li>React Server Components: concept, <code class="icode">'use client'</code>, and what it avoids</li>
+            <li>Styling architecture: CSS Modules, CSS-in-JS, Tailwind, design tokens, theming</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;"><b>Live demo — App C, v0.2:</b> ReelTalk continues from L18. Two things happen in parallel: <code class="icode">sample_code/lecture19/reeltalk</code> gets a full styling overhaul (CSS Modules + tokens + theming), and a brand-new standalone project, <code class="icode">reeltalk-ssr</code>, hand-renders the movie detail page on the server.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">02 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · WHERE WE ARE: EVERYTHING SO FAR HAS BEEN CSR ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">recap.md</div>
+        <div class="breadcrumb">lecture19 / <b>everything-so-far-has-been-csr</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a checkpoint before the new material</div>
+        <h2 class="title reveal" style="font-size:56px;">Where We Are: Everything <span class="hl">Has Been CSR</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;">Every app built in this course — PodWave, StreakUp, ReelTalk's frontend — renders <strong style="color:var(--orange);">entirely in the browser</strong>:</p>
+        <div class="codeblock reveal">
+            <div class="cb-bar">csr-flow</div>
+            <pre>Server sends<span class="tok-pun">:</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span> <span class="tok-attr">id</span><span class="tok-op">=</span><span class="tok-str">"root"</span><span class="tok-pun">&gt;&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span> <span class="tok-op">+</span> a JS bundle
+Browser runs the JS bundle <span class="tok-op">→</span> React renders everything <span class="tok-op">→</span> page appears</pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li>First paint waits for: download JS → parse/execute JS → fetch data → render</li>
+            <li>Search crawlers and link previews see an empty <code class="icode">&lt;div&gt;</code> unless they execute JS</li>
+            <li>Fine for logged-in dashboards, internal tools — <em style="color:var(--orange);">not</em> for public, content-heavy pages</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">recap.md</div><div class="spacer"></div><div class="seg right">03 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · THE RENDERING STRATEGY SPECTRUM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">spectrum</div>
+        <div class="breadcrumb">lecture19 / <b>the-rendering-strategy-spectrum</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 22px;">
+        <div class="kicker reveal">four axes, not a strict upgrade path</div>
+        <h2 class="title reveal" style="font-size:52px;margin-bottom:8px;">The Rendering Strategy <span class="hl">Spectrum</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 300" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="rs-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <rect x="20" y="90" width="300" height="100" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2.5"/>
+          <text x="170" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#7aa2f7">CSR</text>
+          <text x="170" y="155" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">Client-Side Rendering</text>
+          <text x="170" y="173" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">(everything built so far)</text>
+
+          <path d="M320,140 L470,140" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#rs-a)"/>
+          <text x="395" y="120" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#7dcfff">render on server first</text>
+
+          <rect x="480" y="90" width="300" height="100" rx="10" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="630" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#9ece6a">SSR</text>
+          <text x="630" y="155" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">Server-Side Rendering</text>
+          <text x="630" y="173" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">(per-request, then hydrate)</text>
+
+          <path d="M630,190 L630,215 L480,215 L480,240" stroke="#e0af68" stroke-width="2" fill="none" marker-end="url(#rs-a)"/>
+          <text x="555" y="207" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#e0af68">once, at build time</text>
+          <rect x="330" y="245" width="300" height="50" rx="10" fill="#1f2335" stroke="#e0af68" stroke-width="2"/>
+          <text x="480" y="276" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#e0af68">SSG — Static Site Generation</text>
+
+          <path d="M780,140 L940,140" stroke="#bb9af7" stroke-width="2" fill="none" marker-end="url(#rs-a)"/>
+          <text x="860" y="120" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#bb9af7">skip fetching JS entirely</text>
+
+          <rect x="950" y="90" width="320" height="100" rx="10" fill="#1f2335" stroke="#bb9af7" stroke-width="2.5"/>
+          <text x="1110" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="20" font-weight="700" fill="#bb9af7">RSC</text>
+          <text x="1110" y="155" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">React Server Components</text>
+          <text x="1110" y="173" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">(some components NEVER ship)</text>
+        </svg>
+        </div>
+        <table class="comp-table reveal" style="margin-top:0;">
+            <tbody>
+                <tr><td style="color:var(--blue);font-weight:700;">CSR</td><td>Best for interactive, logged-in, non-crawlable views (dashboards, admin panels)</td></tr>
+                <tr><td style="color:var(--green);font-weight:700;">SSR</td><td>Best for pages that change per-request AND need fast first paint / SEO</td></tr>
+                <tr><td style="color:var(--yellow);font-weight:700;">SSG</td><td>Best for pages that rarely change — pre-render once, serve to everyone</td></tr>
+                <tr><td style="color:var(--purple);font-weight:700;">RSC</td><td>A different axis: which components' code ships to the client at all</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">spectrum</div><div class="spacer"></div><div class="seg right">04 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · REELTALK, SPLIT BY STRATEGY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">routes.md</div>
+        <div class="breadcrumb">lecture19 / <b>reeltalk-split-by-strategy</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 22px;">
+        <div class="kicker reveal">two routes, two different jobs</div>
+        <h2 class="title reveal" style="font-size:52px;margin-bottom:8px;">ReelTalk, Split by Strategy <span class="hl">— On Purpose</span></h2>
+        <div class="filemark reveal" style="margin-bottom:8px;">reeltalk/src/components/MovieList.jsx (CSR), reeltalk-ssr/src/server.js (SSR)</div>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 260" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <rect x="60" y="20" width="680" height="220" rx="14" fill="none" stroke="#7aa2f7" stroke-width="2" stroke-dasharray="6 5"/>
+          <text x="400" y="50" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#7aa2f7">/ — movie list — stays CSR</text>
+          <text x="400" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">the page you browse after landing</text>
+          <text x="400" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">interactive filtering/pagination &gt; first-paint speed</text>
+          <text x="400" y="146" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">not what gets shared as a link</text>
+
+          <rect x="860" y="20" width="680" height="220" rx="14" fill="none" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="1200" y="50" text-anchor="middle" font-family="JetBrains Mono" font-size="17" font-weight="700" fill="#9ece6a">/movies/:id — movie detail — becomes SSR</text>
+          <text x="1200" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">the page someone shares a link to</text>
+          <text x="1200" y="118" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">shows up in search results</text>
+          <text x="1200" y="146" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#c0caf5">benefits from fast first paint + crawlable content</text>
+        </svg>
+        </div>
+        <div class="note reveal" style="margin-top:2px;">Same lesson as L15's "don't optimize everything, measure and target" — don't SSR everything either. Pick the pages where it actually matters.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">routes.md</div><div class="spacer"></div><div class="seg right">05 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · SECTION DIVIDER: HAND-WRITING SSR ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">reeltalk-ssr/server.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture19</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">Hand-Writing <span class="hl">SSR</span></div>
+            <div class="by" style="margin-top:18px;">renderToPipeableStream, hydrateRoot, and the data hand-off<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 07 · HAND-WRITING SSR: THE SERVER SIDE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">server.js</div>
+        <div class="breadcrumb">lecture19 / <b>hand-writing-ssr-server-side</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">fetch first, then stream HTML</div>
+        <h2 class="title reveal">Hand-Writing SSR: <span class="hl">The Server Side</span></h2>
+        <div class="filemark reveal">reeltalk-ssr/src/server.js</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">server.js</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> renderToPipeableStream <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-dom/server'</span><span class="tok-pun">;</span>
+app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/movies/:id'</span><span class="tok-pun">,</span> <span class="tok-kw">async</span> <span class="tok-pun">(</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">const</span> movie <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetchMovie</span><span class="tok-pun">(</span>req<span class="tok-pun">.</span>params<span class="tok-pun">.</span>id<span class="tok-pun">);</span>   <span class="tok-com">// plain fetch() to GraphQL</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> pipe <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-fn">renderToPipeableStream</span><span class="tok-pun">(</span><span class="tok-pun">&lt;</span><span class="tok-cls">Document</span> <span class="tok-attr">movie</span><span class="tok-op">=</span><span class="tok-pun">{</span>movie<span class="tok-pun">} /&gt;,</span> <span class="tok-pun">{</span>
+    bootstrapScripts<span class="tok-pun">: [</span><span class="tok-str">'/client.js'</span><span class="tok-pun">],</span>
+    <span class="tok-fn">onShellReady</span><span class="tok-pun">() {</span>
+      res<span class="tok-pun">.</span><span class="tok-fn">setHeader</span><span class="tok-pun">(</span><span class="tok-str">'Content-Type'</span><span class="tok-pun">,</span> <span class="tok-str">'text/html'</span><span class="tok-pun">);</span>
+      <span class="tok-fn">pipe</span><span class="tok-pun">(</span>res<span class="tok-pun">);</span>                                  <span class="tok-com">// stream HTML directly</span>
+    <span class="tok-pun">},</span>
+  <span class="tok-pun">});</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:8px;">Data is fetched <b>before</b> rendering. <code class="icode">renderToPipeableStream</code> streams HTML chunks as ready. The real file uses <code class="icode">createElement(...)</code> instead of JSX — no build step, no compiler. Same output either way.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">server.js</div><div class="spacer"></div><div class="seg right">07 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · HANDING DATA TO THE CLIENT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">__INITIAL_DATA__</div>
+        <div class="breadcrumb">lecture19 / <b>handing-data-to-the-client</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">don't fetch what the server already has</div>
+        <h2 class="title reveal" style="font-size:52px;">Handing Data to the Client: <code style="font-family:inherit;">__INITIAL_DATA__</code></h2>
+        <div class="filemark reveal">reeltalk-ssr/src/server.js, client.js</div>
+        <div class="split reveal">
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">server.js — embed what we already have</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">server.js</div>
+                    <pre><span class="tok-fn">h</span><span class="tok-pun">(</span><span class="tok-str">'script'</span><span class="tok-pun">, {</span>
+  dangerouslySetInnerHTML<span class="tok-pun">: {</span>
+    __html<span class="tok-pun">:</span> <span class="tok-str">`window.__INITIAL_DATA__ =</span>
+      <span class="tok-str">${</span><span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">stringify</span><span class="tok-pun">(</span>movie<span class="tok-pun">)}</span><span class="tok-str">;`</span><span class="tok-pun">,</span>
+  <span class="tok-pun">},</span>
+<span class="tok-pun">})</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--orange);font-weight:700;margin-bottom:8px;">client.js — read it instead of fetching</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">client.js</div>
+                    <pre><span class="tok-kw">const</span> movie <span class="tok-op">=</span> window<span class="tok-pun">.</span>__INITIAL_DATA__<span class="tok-pun">;</span>
+<span class="tok-fn">hydrateRoot</span><span class="tok-pun">(</span>
+  document<span class="tok-pun">.</span><span class="tok-fn">getElementById</span><span class="tok-pun">(</span><span class="tok-str">'root'</span><span class="tok-pun">),</span>
+  <span class="tok-pun">&lt;</span><span class="tok-cls">MovieDetailView</span> <span class="tok-attr">movie</span><span class="tok-op">=</span><span class="tok-pun">{</span>movie<span class="tok-pun">} /&gt;</span>
+<span class="tok-pun">);</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note warn reveal" style="margin-top:12px;">This hand-off <b>IS</b> the main SSR tax: fetch once on the server, serialize it, ship it, deserialize it again on the client. RSC's whole pitch is removing this step entirely.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">__INITIAL_DATA__</div><div class="spacer"></div><div class="seg right">08 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · HYDRATEROOT: ATTACHING TO EXISTING HTML ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">client.js</div>
+        <div class="breadcrumb">lecture19 / <b>hydrateroot-attaching-to-html</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">reusing DOM instead of rebuilding it</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">hydrateRoot</code>: <span class="hl">Attaching to Existing HTML</span></h2>
+        <div class="filemark reveal">reeltalk-ssr/src/client.js</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">client.js</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> hydrateRoot <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react-dom/client'</span><span class="tok-pun">;</span>
+
+<span class="tok-com">// NOT createRoot — hydrateRoot expects DOM that's already there</span>
+<span class="tok-com">// and attaches event listeners to it, instead of re-rendering from scratch</span>
+<span class="tok-fn">hydrateRoot</span><span class="tok-pun">(</span>document<span class="tok-pun">.</span><span class="tok-fn">getElementById</span><span class="tok-pun">(</span><span class="tok-str">'root'</span><span class="tok-pun">),</span> <span class="tok-pun">&lt;</span><span class="tok-cls">MovieDetailView</span> <span class="tok-attr">movie</span><span class="tok-op">=</span><span class="tok-pun">{</span>movie<span class="tok-pun">} /&gt;);</span></pre>
+        </div>
+        <table class="comp-table reveal" style="margin-top:16px;">
+            <thead><tr><th></th><th><code>createRoot</code></th><th><code>hydrateRoot</code></th></tr></thead>
+            <tbody>
+                <tr><td>Expects</td><td>Empty container</td><td>Server-rendered HTML already in the DOM</td></tr>
+                <tr><td>First render</td><td>Builds DOM from scratch</td><td>Reuses existing DOM, attaches interactivity</td></tr>
+                <tr><td>Used in</td><td>Every CSR app so far</td><td>SSR apps only</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">client.js</div><div class="spacer"></div><div class="seg right">09 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · THE HYDRATION MISMATCH TRAP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Greeting.jsx</div>
+        <div class="breadcrumb">lecture19 / <b>the-hydration-mismatch-trap</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">same props must mean same output</div>
+        <h2 class="title reveal">The Hydration <span class="hl">Mismatch Trap</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;"><strong style="color:var(--cyan);">The contract:</strong> server and client must render the <strong style="color:var(--orange);">exact same output</strong> from the <strong style="color:var(--orange);">exact same props</strong>.</p>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">Greeting.jsx</div>
+            <pre><span class="tok-com">// ❌ Different output between server and client render</span>
+<span class="tok-kw">function</span> <span class="tok-fn">Greeting</span><span class="tok-pun">() {</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">p</span><span class="tok-pun">&gt;</span>Rendered at <span class="tok-pun">{</span><span class="tok-kw">new</span> <span class="tok-cls">Date</span><span class="tok-pun">().</span><span class="tok-fn">toLocaleTimeString</span><span class="tok-pun">()}&lt;/</span><span class="tok-tag">p</span><span class="tok-pun">&gt;;</span>
+  <span class="tok-com">// Server renders this at request time. Client re-evaluates it</span>
+  <span class="tok-com">// at hydration time — a few hundred ms later. Different string.</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:16px;">React detects the mismatch, logs a warning, and <b>throws away the server-rendered DOM</b>, re-rendering from scratch — silently defeating the point of SSR. Common causes: <code class="icode">Date.now()</code>/<code class="icode">Math.random()</code> during render, <code class="icode">typeof window !== 'undefined'</code> branches, locale/timezone differences.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Greeting.jsx</div><div class="spacer"></div><div class="seg right">10 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · SECTION DIVIDER: REACT SERVER COMPONENTS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">MovieDetailPage.jsx</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture19</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">React Server <span class="hl">Components</span></div>
+            <div class="by" style="margin-top:18px;">a third kind of component, and where it draws the line<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 12 · ENTER REACT SERVER COMPONENTS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">MovieDetailPage.jsx</div>
+        <div class="breadcrumb">lecture19 / <b>enter-react-server-components</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a component that just awaits</div>
+        <h2 class="title reveal">Enter React Server <span class="hl">Components</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;">RSC is a <strong style="color:var(--purple);">third kind of component</strong>, alongside server-rendered-then-hydrated and pure client components:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">MovieDetailPage.jsx</div>
+            <pre><span class="tok-com">// A Server Component — this is NOT what reeltalk-ssr does</span>
+<span class="tok-kw">async function</span> <span class="tok-fn">MovieDetailPage</span><span class="tok-pun">({</span> id <span class="tok-pun">}) {</span>
+  <span class="tok-kw">const</span> movie <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">fetchMovie</span><span class="tok-pun">(</span>id<span class="tok-pun">);</span>   <span class="tok-com">// await, directly, in the component</span>
+  <span class="tok-kw">return</span> <span class="tok-pun">&lt;</span><span class="tok-tag">div</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;{</span>movie<span class="tok-pun">.</span>title<span class="tok-pun">}&lt;/</span><span class="tok-tag">h1</span><span class="tok-pun">&gt;</span>
+    <span class="tok-pun">&lt;</span><span class="tok-cls">ReviewForm</span> <span class="tok-attr">movieId</span><span class="tok-op">=</span><span class="tok-pun">{</span>movie<span class="tok-pun">.</span>id<span class="tok-pun">} /&gt;</span>  <span class="tok-com">{/* a Client Component */}</span>
+  <span class="tok-pun">&lt;/</span><span class="tok-tag">div</span><span class="tok-pun">&gt;;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:12px;">No <code class="icode">useEffect</code>, no loading state, no <code class="icode">__INITIAL_DATA__</code> hand-off — the component just <code class="icode">await</code>s. This code — including the data-fetching logic — <b>never ships to the browser at all</b>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">MovieDetailPage.jsx</div><div class="spacer"></div><div class="seg right">12 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · 'USE CLIENT': DRAWING THE BOUNDARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ReviewForm.jsx</div>
+        <div class="breadcrumb">lecture19 / <b>use-client-drawing-the-boundary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a subtree boundary, not a whole-app switch</div>
+        <h2 class="title reveal"><code style="font-family:inherit;">'use client'</code>: <span class="hl">Drawing the Boundary</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">ReviewForm.jsx</div>
+            <pre><span class="tok-str">'use client'</span><span class="tok-pun">;</span>   <span class="tok-com">// &lt;-- everything below runs on the CLIENT</span>
+
+<span class="tok-kw">import</span> <span class="tok-pun">{</span> useState <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'react'</span><span class="tok-pun">;</span>
+
+<span class="tok-kw">export function</span> <span class="tok-fn">ReviewForm</span><span class="tok-pun">({</span> movieId <span class="tok-pun">}) {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">[</span>body<span class="tok-pun">,</span> setBody<span class="tok-pun">]</span> <span class="tok-op">=</span> <span class="tok-fn">useState</span><span class="tok-pun">(</span><span class="tok-str">''</span><span class="tok-pun">);</span>   <span class="tok-com">// Server Components CAN'T do this</span>
+  <span class="tok-com">// ...</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li><strong style="color:var(--purple);">Server Components</strong> (the default): can be <code class="icode">async</code>, read files/DBs/APIs directly, <strong style="color:var(--red);">cannot</strong> use <code class="icode">useState</code>, <code class="icode">useEffect</code>, or event handlers</li>
+            <li><strong style="color:var(--cyan);">Client Components</strong> (<code class="icode">'use client'</code>): everything you already know — hooks, interactivity, browser APIs</li>
+            <li>A Server Component can <strong>render</strong> a Client Component — it just can't hold state or handle events itself</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ReviewForm.jsx</div><div class="spacer"></div><div class="seg right">13 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · RSC VS HAND-WRITTEN SSR ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">comparison</div>
+        <div class="breadcrumb">lecture19 / <b>rsc-vs-hand-written-ssr</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what the mechanism your framework automates</div>
+        <h2 class="title reveal" style="font-size:52px;">RSC vs. Hand-Written SSR: <span class="hl">What It Saves</span></h2>
+        <div class="filemark reveal">Compare to reeltalk-ssr/src/server.js + client.js</div>
+        <table class="comp-table reveal">
+            <thead><tr><th></th><th>Hand-written SSR (reeltalk-ssr)</th><th>RSC (Next.js App Router, conceptual)</th></tr></thead>
+            <tbody>
+                <tr><td>Data fetching</td><td>Server fetches, serializes into <code>__INITIAL_DATA__</code></td><td>Component <code>await</code>s directly</td></tr>
+                <tr><td>Client bundle</td><td>Ships <code>MovieDetailView</code> + hydration code</td><td>Ships ONLY the Client Component subtree</td></tr>
+                <tr><td>Hydration</td><td>Full component tree re-attaches</td><td>Only Client Component "islands" hydrate</td></tr>
+                <tr><td>Extra step to avoid re-fetch</td><td>Yes — the <code>__INITIAL_DATA__</code> hand-off</td><td>No — data never left the server</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">Not a "RSC is strictly better" slide — RSC requires a framework implementing the RSC protocol (Next.js App Router, and few others). <code class="icode">reeltalk-ssr</code> shows you the mechanism your framework is automating.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">comparison</div><div class="spacer"></div><div class="seg right">14 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · SECTION DIVIDER: STYLING ARCHITECTURE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">tokens.css</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture19</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Styling <span class="hl">Architecture</span></div>
+            <div class="by" style="margin-top:18px;">CSS Modules, design tokens, and theming for free<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 16 · STYLING ARCHITECTURE: THE OPTIONS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">options.md</div>
+        <div class="breadcrumb">lecture19 / <b>styling-architecture-the-options</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">four approaches, one axis that matters for RSC</div>
+        <h2 class="title reveal">Styling Architecture: <span class="hl">The Options</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Approach</th><th>Runtime cost</th><th>Works with RSC?</th><th>Example</th></tr></thead>
+            <tbody>
+                <tr><td>Global CSS</td><td>None</td><td style="color:var(--green);">Yes</td><td><code>reeltalk-ssr/public/styles.css</code></td></tr>
+                <tr><td><strong>CSS Modules</strong></td><td>None (build-time scoping)</td><td style="color:var(--green);">Yes</td><td><code>reeltalk/src/components/*.module.css</code></td></tr>
+                <tr><td>CSS-in-JS (runtime)</td><td>JS runs in browser to inject styles</td><td style="color:var(--yellow);">⚠️ Friction</td><td><code>styled-components</code>, older <code>emotion</code></td></tr>
+                <tr><td>Tailwind</td><td>None (build-time)</td><td style="color:var(--green);">Yes</td><td>utility classes, generated at build</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">options.md</div><div class="spacer"></div><div class="seg right">16 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · WHY RUNTIME CSS-IN-JS AND RSC DON'T MIX WELL ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">Button.jsx</div>
+        <div class="breadcrumb">lecture19 / <b>runtime-css-in-js-and-rsc</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">a real, actively-discussed tension</div>
+        <h2 class="title reveal" style="font-size:52px;">Why Runtime CSS-in-JS <span class="hl">and RSC Don't Mix Well</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">Button.jsx</div>
+            <pre><span class="tok-com">// A typical runtime CSS-in-JS component</span>
+<span class="tok-kw">const</span> <span class="tok-cls">Button</span> <span class="tok-op">=</span> styled<span class="tok-pun">.</span>button<span class="tok-str">`
+  background: ${(props) =&gt; props.theme.accent};
+`</span><span class="tok-pun">;</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li><code class="icode">styled-components</code> and similar libraries inject <code class="icode">&lt;style&gt;</code> tags using JS that <strong style="color:var(--orange);">runs in the browser</strong>, often reading a <code class="icode">ThemeProvider</code> from Context spanning the whole tree</li>
+            <li>A Server Component has <strong style="color:var(--red);">no client-side JS runtime</strong> to run that injection code, and can't participate in Context crossing the server/client boundary</li>
+            <li>Not a hard rule ("CSS-in-JS is banned") — libraries are evolving compile-time-only variants — but it's why zero-runtime approaches have gained ground alongside RSC</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">Button.jsx</div><div class="spacer"></div><div class="seg right">17 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · CSS MODULES IN PRACTICE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">MovieList.module.css</div>
+        <div class="breadcrumb">lecture19 / <b>css-modules-in-practice</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">scoped classnames, zero runtime</div>
+        <h2 class="title reveal">CSS Modules <span class="hl">in Practice</span></h2>
+        <div class="filemark reveal">reeltalk/src/components/MovieList.jsx, MovieList.module.css</div>
+        <div class="split reveal">
+            <div class="codeblock sm">
+                <div class="cb-bar">MovieList.module.css</div>
+                <pre><span class="tok-tag">.card</span> <span class="tok-pun">{</span> display<span class="tok-pun">:</span> flex<span class="tok-pun">;</span> gap<span class="tok-pun">:</span> <span class="tok-fn">var</span><span class="tok-pun">(--space-2);</span> <span class="tok-pun">}</span>
+<span class="tok-tag">.active</span> <span class="tok-pun">{</span> background<span class="tok-pun">:</span> <span class="tok-fn">var</span><span class="tok-pun">(--color-accent-soft);</span> <span class="tok-pun">}</span></pre>
+            </div>
+            <div class="codeblock sm">
+                <div class="cb-bar">MovieList.jsx</div>
+                <pre><span class="tok-kw">import</span> styles <span class="tok-kw">from</span> <span class="tok-str">'./MovieList.module.css'</span><span class="tok-pun">;</span>
+
+<span class="tok-pun">&lt;</span><span class="tok-tag">li</span> <span class="tok-attr">className</span><span class="tok-op">=</span><span class="tok-pun">{</span>movie<span class="tok-pun">.</span>id <span class="tok-op">===</span> selectedMovieId
+  <span class="tok-op">?</span> <span class="tok-str">`${</span>styles<span class="tok-pun">.</span>card<span class="tok-str">} ${</span>styles<span class="tok-pun">.</span>active<span class="tok-str">}`</span>
+  <span class="tok-op">:</span> styles<span class="tok-pun">.</span>card<span class="tok-pun">}&gt;</span></pre>
+            </div>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li>Each <code class="icode">.module.css</code> file's classnames are scoped to that file at build time — <code class="icode">styles.card</code> might compile to <code class="icode">_card_a8f3k1</code>, guaranteed unique</li>
+            <li>No extra library needed to combine classnames conditionally — they're just strings</li>
+            <li>Zero JavaScript runtime cost — the CSS ships as a normal <code class="icode">.css</code> file</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">MovieList.module.css</div><div class="spacer"></div><div class="seg right">18 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · DESIGN TOKENS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tokens.css</div>
+        <div class="breadcrumb">lecture19 / <b>design-tokens</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">naming the design system</div>
+        <h2 class="title reveal">Design Tokens: <span class="hl">Naming the Design System</span></h2>
+        <div class="filemark reveal">reeltalk/src/styles/tokens.css</div>
+        <div class="codeblock reveal">
+            <div class="cb-bar">tokens.css</div>
+            <pre><span class="tok-pun">:root {</span>
+  <span class="tok-tag">--color-bg</span><span class="tok-pun">:</span> <span class="tok-str">#0b0b12</span><span class="tok-pun">;</span>
+  <span class="tok-tag">--color-accent</span><span class="tok-pun">:</span> <span class="tok-str">#e0b34c</span><span class="tok-pun">;</span>
+  <span class="tok-tag">--space-2</span><span class="tok-pun">:</span> <span class="tok-num">0.5rem</span><span class="tok-pun">;</span>
+  <span class="tok-tag">--radius-md</span><span class="tok-pun">:</span> <span class="tok-num">8px</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li>A <strong style="color:var(--cyan);">design token</strong> is a named value (<code class="icode">--color-accent</code>, not <code class="icode">#e0b34c</code> scattered across 15 files) — change it once, every component updates</li>
+            <li>CSS custom properties (<code class="icode">var(--...)</code>) are the mechanism here; the same concept exists in Tailwind config, Style Dictionary, or CSS-in-JS theme objects — the <em style="color:var(--orange);">naming discipline</em> matters more than the tool</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tokens.css</div><div class="spacer"></div><div class="seg right">19 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · THEMING WITHOUT RE-RENDERING REACT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ThemeContext.jsx</div>
+        <div class="breadcrumb">lecture19 / <b>theming-without-rerendering-react</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one DOM attribute, zero React re-renders</div>
+        <h2 class="title reveal" style="font-size:52px;">Theming Without <span class="hl">Re-rendering React</span></h2>
+        <div class="filemark reveal">reeltalk/src/context/ThemeContext.jsx</div>
+        <div class="split reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">ThemeContext.jsx</div>
+                <pre><span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-com">// sets &lt;html data-theme="light"&gt;</span>
+  document<span class="tok-pun">.</span>documentElement<span class="tok-pun">.</span>dataset<span class="tok-pun">.</span>theme <span class="tok-op">=</span> state<span class="tok-pun">.</span>theme<span class="tok-pun">;</span>
+<span class="tok-pun">}, [</span>state<span class="tok-pun">.</span>theme<span class="tok-pun">]);</span></pre>
+            </div>
+            <div class="theme-swap">
+                <div class="theme-card dark">
+                    <div class="tc-label">data-theme="dark"</div>
+                    <div class="tc-title">ReelTalk</div>
+                    <div class="tc-btn">★ Add Review</div>
+                </div>
+                <div class="theme-swap-arrow">⇄</div>
+                <div class="theme-card light">
+                    <div class="tc-label">data-theme="light"</div>
+                    <div class="tc-title">ReelTalk</div>
+                    <div class="tc-btn">★ Add Review</div>
+                </div>
+            </div>
+        </div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">tokens.css</div>
+            <pre><span class="tok-pun">:root[data-theme='light'] {</span>
+  <span class="tok-tag">--color-bg</span><span class="tok-pun">:</span> <span class="tok-str">#f5f5f7</span><span class="tok-pun">;</span> <span class="tok-tag">--color-accent</span><span class="tok-pun">:</span> <span class="tok-str">#a97a1f</span><span class="tok-pun">;</span> <span class="tok-com">/* same token NAMES, different values */</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:8px;">Toggling the theme flips one DOM attribute. Every CSS Module already reads <code class="icode">var(--color-*)</code> — the browser repaints instantly, zero React re-renders. Same job as App B's <code class="icode">ViewPreferencesContext</code> — a simple, synchronous UI preference.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ThemeContext.jsx</div><div class="spacer"></div><div class="seg right">20 / 21</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture19</div>
+        <div class="breadcrumb">lecture19 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <ul class="list reveal">
+            <li>CSR vs SSR vs SSG vs RSC: different problems, not a strict upgrade path</li>
+            <li>Hand-written SSR: fetch before render, <code class="icode">renderToPipeableStream</code>, <code class="icode">hydrateRoot</code>, and the <code class="icode">__INITIAL_DATA__</code> hand-off</li>
+            <li>Hydration mismatches: same props must produce same output, server and client</li>
+            <li>React Server Components: <code class="icode">async</code> components, <code class="icode">'use client'</code> boundaries, and what they avoid vs. hand-written SSR</li>
+            <li>Styling: CSS Modules and design tokens as the zero-runtime, RSC-friendly default</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;">🎬 <b>Live demo code:</b> <code class="icode">sample_code/lecture19/reeltalk</code> (styling) + <code class="icode">reeltalk-ssr</code> (SSR) + <code class="icode">reeltalk-api</code> (unchanged). Continues in Lecture 20 (SSE + WebSocket).</div>
+        <div class="note reveal" style="margin-top:14px;">⏭️ <b>Next lecture:</b> Server-Sent Events &amp; WebSocket</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture19</div><div class="spacer"></div><div class="seg right">21 / 21</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture19-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture19.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

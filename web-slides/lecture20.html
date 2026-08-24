@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecture 20 — Server-Sent Events &amp; WebSocket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–19) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.cols.c4 { grid-template-columns:1fr 1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-green h3  { color:var(--green); }
+.col-card.accent-purple h3 { color:var(--purple); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-red h3    { color:var(--red); }
+.col-card.accent-yellow h3 { color:var(--yellow); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+.tok-tag { color:var(--red); }
+.tok-attr{ color:var(--orange); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🎬";font-size:14px; }
+
+/* Compare (side-by-side ✅/❌) */
+.compare { display:grid;grid-template-columns:1fr 1fr;gap:28px;flex:1;min-height:0; }
+.compare-label { font-family:var(--font-mono);font-size:18px;font-weight:700;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:10px; }
+.compare-label.good { color:var(--green); }
+.compare-label.bad  { color:var(--red); }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+
+/* === LECTURE 18 CARRY-OVER: app-arc phase chips === */
+.phase-banner { display:flex;align-items:center;gap:22px;flex:1;min-height:0;justify-content:center; }
+.phase-chip { display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 30px;border-radius:16px;background:var(--panel);border:2px solid var(--border-soft);opacity:0.55;transform:scale(0.96); }
+.phase-chip .pc-icon { font-size:36px; }
+.phase-chip .pc-label { font-family:var(--font-mono);font-size:17px;font-weight:700;color:var(--fg-dim);text-align:center; }
+.phase-chip.now { opacity:1;transform:scale(1.06);border-color:var(--purple);box-shadow:0 0 46px rgba(187,154,247,0.28); }
+.phase-chip.now .pc-label { color:var(--purple); }
+.phase-chip.done { opacity:0.85;border-color:var(--green); }
+.phase-chip.done .pc-label { color:var(--green); }
+.phase-arrow { font-size:30px;color:var(--fg-faint); }
+
+/* === LECTURE 20 ADDITIONS: AI-summary streaming mock + finale badge === */
+.ai-mock { background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:34px 40px;display:flex;flex-direction:column;gap:22px;box-shadow:0 20px 50px rgba(0,0,0,0.3); }
+.ai-mock-btn { align-self:flex-start;font-family:var(--font-mono);font-size:18px;font-weight:700;padding:14px 26px;border-radius:10px;background:rgba(122,162,247,0.15);color:var(--blue);border:1px solid rgba(122,162,247,0.4); }
+.ai-mock-text { font-size:24px;line-height:1.55;color:var(--fg-dim);font-family:var(--font-body); }
+.ai-mock-text .tok-in { color:var(--fg); }
+.wire-frame { background:#15161f;border:1px solid var(--border);border-radius:10px;padding:16px 22px;font-family:var(--font-mono);font-size:19px;color:var(--teal);line-height:1.7; }
+.wire-frame .wf-blank { color:var(--fg-faint);font-style:italic; }
+.finale-badge { display:flex;flex-direction:column;align-items:center;gap:16px; }
+.finale-badge .fb-ring { width:180px;height:180px;border-radius:50%;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:72px;box-shadow:0 0 60px rgba(122,162,247,0.35); }
+.finale-badge .fb-text { font-family:var(--font-display);font-weight:800;font-size:32px;color:var(--fg); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">index.js <span class="dirty">— new</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ node src/index.js</span></div>
+            <div class="term-out">› Loading: SSE · WebSocket · upgrade routing</div>
+            <div class="section-num">Lecture 20</div>
+            <h1>Server-Sent Events <span class="hl">&amp; WebSocket</span></h1>
+            <div class="by">// real-time transports, underneath everything<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note ok reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟢 <b>Use AI freely.</b> SSE and WebSocket wiring is pattern-based. Focus on understanding which transport fits which problem — and on what a higher-level abstraction (like GraphQL subscriptions) is doing for you underneath.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">lecture20 / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li>Why real-time? Polling → long-polling → SSE → WebSocket</li>
+            <li><strong>Server-Sent Events</strong>: streaming one-directional data (the "AI typing" effect)</li>
+            <li>Raw <strong>WebSocket</strong>: full-duplex, and what graphql-ws was abstracting</li>
+            <li>Choosing between SSE, WebSocket, and GraphQL Subscriptions</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;"><b>Live demo — App C, v0.3 (final):</b> ReelTalk gains two real-time features. An "AI summary" that streams token-by-token over <b>SSE</b>, and the live-review feature (built with a GraphQL subscription in L18) <b>rebuilt over a raw WebSocket</b> to see what the subscription hid. Code: <code class="icode">sample_code/lecture20/reeltalk</code> + <code class="icode">reeltalk-api</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">02 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · APP C: THE FINAL VERSION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">reeltalk</div>
+        <div class="breadcrumb">lecture20 / <b>app-c-the-final-version</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the third through-line app, completed</div>
+        <h2 class="title reveal">App C: <span class="hl">The Final Version</span></h2>
+        <ul class="list reveal">
+            <li>✨ An <strong>AI summary</strong> button streams a spoiler-free blurb token-by-token — over SSE</li>
+            <li>📡 New reviews still appear live — now over a hand-written <strong>WebSocket</strong>, running alongside the L18 GraphQL subscription</li>
+            <li>Code: <code class="icode">sample_code/lecture20/reeltalk</code> + <code class="icode">reeltalk-api</code></li>
+        </ul>
+        <div class="phase-banner reveal" style="margin-top:8px;">
+            <div class="phase-chip done"><div class="pc-icon">🎬</div><div class="pc-label">L18<br>v0.1 GraphQL layer</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip done"><div class="pc-icon">🎨</div><div class="pc-label">L19<br>v0.2 SSR + styling</div></div>
+            <div class="phase-arrow">→</div>
+            <div class="phase-chip now"><div class="pc-icon">📡</div><div class="pc-label">L20<br>v0.3 real-time</div></div>
+        </div>
+        <div class="note reveal" style="margin-top:8px;">Same schema, same data — this lecture is entirely about <em style="color:var(--orange);">how updates travel</em> from server to browser.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">reeltalk</div><div class="spacer"></div><div class="seg right">03 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · THE MOTIVATING QUESTION ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">question.md</div>
+        <div class="breadcrumb">lecture20 / <b>the-motivating-question</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">why does this feel different</div>
+        <h2 class="title reveal">The Motivating <span class="hl">Question</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;"><strong style="color:var(--cyan);">Why does an AI chatbot's reply appear one word at a time?</strong></p>
+        <ul class="list reveal">
+            <li>The full answer takes several seconds to generate. Waiting for all of it, then showing it at once, feels broken.</li>
+            <li>So the server sends each token <strong>as it's produced</strong>, over a single long-lived HTTP response that stays open.</li>
+            <li>That's <strong>Server-Sent Events</strong> — and it's why SSE went from niche to everywhere once LLM chat UIs became common.</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">This lecture is about the transports underneath that experience — and they connect back to what you already built: L18's GraphQL Subscription was one such real-time transport, riding on the next one we'll cover.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">question.md</div><div class="spacer"></div><div class="seg right">04 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · SECTION DIVIDER: THE SPECTRUM ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">transports.md</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture20</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">The Spectrum of <span class="hl">Fresh Data</span></div>
+            <div class="by" style="margin-top:18px;">polling → long-polling → SSE → WebSocket<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 06 · THE SPECTRUM OF "GETTING FRESH DATA" ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">spectrum</div>
+        <div class="breadcrumb">lecture20 / <b>the-spectrum-of-getting-fresh-data</b></div>
+    </div>
+    <div class="canvas" style="padding:44px 76px 22px;">
+        <div class="kicker reveal">escalating commitment for escalating freshness</div>
+        <h2 class="title reveal" style="font-size:50px;margin-bottom:6px;">The Spectrum of <span class="hl">"Getting Fresh Data"</span></h2>
+        <div class="reveal" style="flex:1;min-height:0;">
+        <svg viewBox="0 0 1600 220" width="100%" height="100%" style="display:block;overflow:visible;" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="sp-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+          </defs>
+          <rect x="10" y="20" width="370" height="150" rx="12" fill="#1f2335" stroke="#565f89" stroke-width="2.5"/>
+          <text x="195" y="56" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#9aa5ce">Polling</text>
+          <text x="195" y="84" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">client asks every N seconds</text>
+          <text x="195" y="106" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">simple, but wasteful + laggy</text>
+
+          <path d="M380,95 L425,95" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#sp-a)"/>
+
+          <rect x="430" y="20" width="370" height="150" rx="12" fill="#1f2335" stroke="#e0af68" stroke-width="2.5"/>
+          <text x="615" y="56" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#e0af68">Long-polling</text>
+          <text x="615" y="84" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">server holds the request open</text>
+          <text x="615" y="106" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">until it has something to say</text>
+
+          <path d="M800,95 L845,95" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#sp-a)"/>
+
+          <rect x="850" y="20" width="370" height="150" rx="12" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+          <text x="1035" y="56" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#9ece6a">SSE</text>
+          <text x="1035" y="84" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">ONE-WAY: server → client</text>
+          <text x="1035" y="106" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">over a long-lived HTTP response</text>
+
+          <path d="M1220,95 L1265,95" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#sp-a)"/>
+
+          <rect x="1270" y="20" width="330" height="150" rx="12" fill="#1f2335" stroke="#bb9af7" stroke-width="2.5"/>
+          <text x="1435" y="56" text-anchor="middle" font-family="JetBrains Mono" font-size="19" font-weight="700" fill="#bb9af7">WebSocket</text>
+          <text x="1435" y="84" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">TWO-WAY, full-duplex channel</text>
+          <text x="1435" y="106" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">its own upgraded protocol</text>
+        </svg>
+        </div>
+        <table class="comp-table reveal" style="margin-top:0;">
+            <thead><tr><th></th><th>Direction</th><th>Protocol</th><th>Auto-reconnect</th><th>Good for</th></tr></thead>
+            <tbody>
+                <tr><td style="color:var(--fg-dim);font-weight:700;">Polling</td><td>client pulls</td><td>plain HTTP</td><td>n/a</td><td>simplest, low-freq</td></tr>
+                <tr><td style="color:var(--green);font-weight:700;">SSE</td><td>server → client</td><td><code>text/event-stream</code></td><td>built-in</td><td>notifications, feeds, <strong>AI streaming</strong></td></tr>
+                <tr><td style="color:var(--purple);font-weight:700;">WebSocket</td><td>client ⇄ server</td><td><code>ws://</code> (upgraded)</td><td>you handle it</td><td>chat, collaboration, games</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">spectrum</div><div class="spacer"></div><div class="seg right">06 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 07 · SECTION DIVIDER: SERVER-SENT EVENTS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">summarySSE.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture20</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Server-Sent <span class="hl">Events</span></div>
+            <div class="by" style="margin-top:18px;">one-way streaming over a long-lived HTTP response<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 08 · SSE: THE SERVER SIDE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">summarySSE.js</div>
+        <div class="breadcrumb">lecture20 / <b>sse-the-server-side</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">text/event-stream turns a response into a stream</div>
+        <h2 class="title reveal" style="font-size:56px;">Server-Sent Events: <span class="hl">The Server Side</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/summarySSE.js</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">summarySSE.js</div>
+            <pre>app<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'/movies/:id/summary'</span><span class="tok-pun">, (</span>req<span class="tok-pun">,</span> res<span class="tok-pun">) =&gt; {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">setHeader</span><span class="tok-pun">(</span><span class="tok-str">'Content-Type'</span><span class="tok-pun">,</span> <span class="tok-str">'text/event-stream'</span><span class="tok-pun">);</span>  <span class="tok-com">// &lt;- makes it SSE</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">setHeader</span><span class="tok-pun">(</span><span class="tok-str">'Cache-Control'</span><span class="tok-pun">,</span> <span class="tok-str">'no-cache'</span><span class="tok-pun">);</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">setHeader</span><span class="tok-pun">(</span><span class="tok-str">'Connection'</span><span class="tok-pun">,</span> <span class="tok-str">'keep-alive'</span><span class="tok-pun">);</span>
+  <span class="tok-kw">const</span> tokens <span class="tok-op">=</span> <span class="tok-fn">buildSummary</span><span class="tok-pun">(</span>movie<span class="tok-pun">).</span><span class="tok-fn">split</span><span class="tok-pun">(</span><span class="tok-str">' '</span><span class="tok-pun">);</span> <span class="tok-kw">let</span> i <span class="tok-op">=</span> <span class="tok-num">0</span><span class="tok-pun">;</span>
+  <span class="tok-kw">const</span> interval <span class="tok-op">=</span> <span class="tok-fn">setInterval</span><span class="tok-pun">(() =&gt; {</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(</span>i <span class="tok-op">&lt;</span> tokens<span class="tok-pun">.</span>length<span class="tok-pun">)</span> res<span class="tok-pun">.</span><span class="tok-fn">write</span><span class="tok-pun">(</span><span class="tok-str">`data: ${</span>tokens<span class="tok-pun">[</span>i<span class="tok-op">++</span><span class="tok-pun">]}\n\n`</span><span class="tok-pun">);</span>  <span class="tok-com">// &lt;- SSE wire format</span>
+    <span class="tok-kw">else</span> <span class="tok-pun">{</span> res<span class="tok-pun">.</span><span class="tok-fn">write</span><span class="tok-pun">(</span><span class="tok-str">'event: done\ndata: end\n\n'</span><span class="tok-pun">);</span> <span class="tok-fn">clearInterval</span><span class="tok-pun">(</span>interval<span class="tok-pun">);</span> res<span class="tok-pun">.</span><span class="tok-fn">end</span><span class="tok-pun">();</span> <span class="tok-pun">}</span>  <span class="tok-com">// &lt;- named event</span>
+  <span class="tok-pun">},</span> <span class="tok-num">80</span><span class="tok-pun">);</span>
+  req<span class="tok-pun">.</span><span class="tok-fn">on</span><span class="tok-pun">(</span><span class="tok-str">'close'</span><span class="tok-pun">, () =&gt;</span> <span class="tok-fn">clearInterval</span><span class="tok-pun">(</span>interval<span class="tok-pun">));</span> <span class="tok-com">// client left mid-stream</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note demo reveal" style="margin-top:10px;"><code class="icode">text/event-stream</code> is what makes the browser treat this as a stream — each message is <code class="icode">data: payload\n\n</code>, and the <b>blank line is the delimiter</b>. The response stays <b>open</b>; you <code class="icode">res.write()</code> repeatedly instead of <code class="icode">res.json()</code> once. No real LLM here — the lesson is the transport, not the text.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">summarySSE.js</div><div class="spacer"></div><div class="seg right">08 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · SSE: THE CLIENT SIDE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">useAiSummary.js</div>
+        <div class="breadcrumb">lecture20 / <b>sse-the-client-side</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">EventSource: the browser's built-in SSE client</div>
+        <h2 class="title reveal" style="font-size:56px;">Server-Sent Events: <span class="hl">The Client Side</span></h2>
+        <div class="filemark reveal">reeltalk/src/hooks/useAiSummary.js</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">useAiSummary.js</div>
+            <pre><span class="tok-kw">const</span> source <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">EventSource</span><span class="tok-pun">(</span><span class="tok-str">`${</span>API_BASE<span class="tok-str">}/movies/${</span>id<span class="tok-str">}/summary`</span><span class="tok-pun">);</span>
+source<span class="tok-pun">.</span>onmessage <span class="tok-op">=</span> <span class="tok-pun">(</span>event<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-fn">setText</span><span class="tok-pun">((</span>prev<span class="tok-pun">) =&gt;</span> prev <span class="tok-op">+</span> <span class="tok-str">' '</span> <span class="tok-op">+</span> event<span class="tok-pun">.</span>data<span class="tok-pun">);</span>   <span class="tok-com">// append each token</span>
+<span class="tok-pun">};</span>
+source<span class="tok-pun">.</span><span class="tok-fn">addEventListener</span><span class="tok-pun">(</span><span class="tok-str">'done'</span><span class="tok-pun">, () =&gt;</span> source<span class="tok-pun">.</span><span class="tok-fn">close</span><span class="tok-pun">());</span> <span class="tok-com">// else it auto-reconnects!</span>
+source<span class="tok-pun">.</span>onerror <span class="tok-op">=</span> <span class="tok-pun">() =&gt;</span> source<span class="tok-pun">.</span><span class="tok-fn">close</span><span class="tok-pun">();</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li><code class="icode">EventSource</code> is the browser's built-in SSE client — it even <strong>auto-reconnects</strong> if the connection drops.</li>
+            <li><strong>Key limitation</strong>: it can only make <strong>GET</strong> requests — no custom headers, no body. Fine here, since the id is in the URL.</li>
+            <li>Need to POST a prompt to an LLM? Use <code class="icode">fetch()</code> + a <code class="icode">ReadableStream</code> reader instead — same wire format, more control.</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">useAiSummary.js</div><div class="spacer"></div><div class="seg right">09 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · SSE IN ACTION: STREAMING AN AI SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">AiSummary.jsx</div>
+        <div class="breadcrumb">lecture20 / <b>sse-in-action</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what this actually looks like in ReelTalk</div>
+        <h2 class="title reveal">SSE in Action: <span class="hl">Streaming an AI Summary</span></h2>
+        <div class="filemark reveal">reeltalk/src/components/AiSummary.jsx</div>
+        <div class="split reveal">
+            <div class="ai-mock">
+                <button class="ai-mock-btn" disabled>Generating…</button>
+                <p class="ai-mock-text">Spoiler-free take on <span class="tok-in">Nebula Drift</span>, released in <span class="tok-in">2024</span>. Directed by <span class="tok-in">R. Okafor</span>, this Sci-Fi film runs about<span class="cursor"></span></p>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">on the wire, each tick looks like</p>
+                <div class="wire-frame">
+data: Spoiler-free<br>
+<span class="wf-blank">(blank line — the delimiter)</span><br>
+data: take<br>
+<span class="wf-blank">(blank line)</span><br>
+data: on<br>
+<span class="wf-blank">…</span><br>
+event: done<br>
+data: end
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:14px;">Token-by-token arrival is what produces the familiar "typing" effect — the exact UX principle behind any AI chat interface, minus the actual LLM. The button disables mid-stream; the blinking cursor is just CSS, driven by <code class="icode">status === 'streaming'</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">AiSummary.jsx</div><div class="spacer"></div><div class="seg right">10 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · SECTION DIVIDER: RAW WEBSOCKET ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">reviewsSocket.js</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/lecture20</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Raw <span class="hl">WebSocket</span></div>
+            <div class="by" style="margin-top:18px;">full-duplex — and what graphql-ws was quietly doing for you<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 12 · RAW WEBSOCKET: REBUILDING L18'S LIVE REVIEWS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">reviewsSocket.js</div>
+        <div class="breadcrumb">lecture20 / <b>rebuilding-l18s-live-reviews</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">same feature, no subscription abstraction</div>
+        <h2 class="title reveal" style="font-size:50px;">Raw WebSocket: <span class="hl">Rebuilding L18's Live Reviews</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/reviewsSocket.js</div>
+        <p class="lead-in reveal" style="font-size:22px;margin-bottom:10px;">In L18, "new reviews appear live" used a <strong style="color:var(--cyan);">GraphQL Subscription</strong> (<code class="icode">useSubscription</code> + graphql-ws). Here's the same feature with a raw <code class="icode">ws</code> server — deliberately, to see what that abstraction handled:</p>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">reviewsSocket.js</div>
+            <pre><span class="tok-kw">export const</span> reviewsWss <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">WebSocketServer</span><span class="tok-pun">({</span> noServer<span class="tok-pun">:</span> <span class="tok-kw">true</span> <span class="tok-pun">});</span>
+reviewsWss<span class="tok-pun">.</span><span class="tok-fn">on</span><span class="tok-pun">(</span><span class="tok-str">'connection'</span><span class="tok-pun">, (</span>ws<span class="tok-pun">,</span> request<span class="tok-pun">) =&gt; {</span>
+  ws<span class="tok-pun">.</span>movieId <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">URL</span><span class="tok-pun">(</span>request<span class="tok-pun">.</span>url<span class="tok-pun">,</span> <span class="tok-str">`http://${</span>request<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>host<span class="tok-str">}`</span><span class="tok-pun">).</span>searchParams<span class="tok-pun">.</span><span class="tok-fn">get</span><span class="tok-pun">(</span><span class="tok-str">'movieId'</span><span class="tok-pun">);</span> <span class="tok-com">// ← scope, by hand</span>
+<span class="tok-pun">});</span>
+<span class="tok-kw">export function</span> <span class="tok-fn">broadcastReview</span><span class="tok-pun">(</span>review<span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> message <span class="tok-op">=</span> <span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">stringify</span><span class="tok-pun">(</span>review<span class="tok-pun">);</span>   <span class="tok-com">// ← serialize by hand</span>
+  <span class="tok-kw">for</span> <span class="tok-pun">(</span><span class="tok-kw">const</span> ws <span class="tok-kw">of</span> reviewsWss<span class="tok-pun">.</span>clients<span class="tok-pun">) {</span>
+    <span class="tok-kw">if</span> <span class="tok-pun">(</span>ws<span class="tok-pun">.</span>readyState <span class="tok-op">===</span> ws<span class="tok-pun">.</span><span class="tok-cls">OPEN</span> <span class="tok-op">&amp;&amp;</span> ws<span class="tok-pun">.</span>movieId <span class="tok-op">===</span> review<span class="tok-pun">.</span>movieId<span class="tok-pun">)</span> ws<span class="tok-pun">.</span><span class="tok-fn">send</span><span class="tok-pun">(</span>message<span class="tok-pun">);</span> <span class="tok-com">// ← filter, by hand</span>
+  <span class="tok-pun">}</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:8px;"><code class="icode">createReview</code> now fires <b>both</b> the GraphQL <code class="icode">pubsub.publish</code> (L18, still there) <b>and</b> this <code class="icode">broadcastReview</code>. Same event, two transports, so the lecture can compare them live.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">reviewsSocket.js</div><div class="spacer"></div><div class="seg right">12 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · RAW WEBSOCKET: THE CLIENT SIDE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">useReviewSocket.js</div>
+        <div class="breadcrumb">lecture20 / <b>raw-websocket-the-client-side</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">everything useSubscription did for you, by hand</div>
+        <h2 class="title reveal" style="font-size:56px;">Raw WebSocket: <span class="hl">The Client Side</span></h2>
+        <div class="filemark reveal">reeltalk/src/hooks/useReviewSocket.js</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">useReviewSocket.js</div>
+            <pre><span class="tok-fn">useEffect</span><span class="tok-pun">(() =&gt; {</span>
+  <span class="tok-kw">const</span> socket <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">WebSocket</span><span class="tok-pun">(</span><span class="tok-str">`${</span>WS_BASE<span class="tok-str">}/ws/reviews?movieId=${</span>movieId<span class="tok-str">}`</span><span class="tok-pun">);</span>
+
+  socket<span class="tok-pun">.</span><span class="tok-fn">addEventListener</span><span class="tok-pun">(</span><span class="tok-str">'message'</span><span class="tok-pun">, (</span>event<span class="tok-pun">) =&gt; {</span>
+    <span class="tok-kw">const</span> review <span class="tok-op">=</span> <span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>event<span class="tok-pun">.</span>data<span class="tok-pun">);</span>                    <span class="tok-com">// parse by hand</span>
+    <span class="tok-fn">appendReviewToCache</span><span class="tok-pun">(</span>client<span class="tok-pun">.</span>cache<span class="tok-pun">, {</span> __typename<span class="tok-pun">:</span> <span class="tok-str">'Review'</span><span class="tok-pun">,</span> <span class="tok-op">...</span>review <span class="tok-pun">});</span> <span class="tok-com">// re-tag by hand</span>
+  <span class="tok-pun">});</span>
+
+  <span class="tok-kw">return</span> <span class="tok-pun">() =&gt;</span> socket<span class="tok-pun">.</span><span class="tok-fn">close</span><span class="tok-pun">();</span>   <span class="tok-com">// clean up by hand</span>
+<span class="tok-pun">}, [</span>movieId<span class="tok-pun">,</span> client<span class="tok-pun">]);</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:12px;">
+            <li>pass the scope (<code class="icode">movieId</code>) as a query-string param — a raw socket has no "arguments"</li>
+            <li><strong style="color:var(--red);">re-attach <code class="icode">__typename</code></strong> — forget it and the cache write throws (a real bug hit while building this)</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">useReviewSocket.js</div><div class="spacer"></div><div class="seg right">13 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · SO WHAT DOES A GRAPHQL SUBSCRIPTION BUY YOU? ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">receipt.md</div>
+        <div class="breadcrumb">lecture20 / <b>what-does-a-subscription-buy-you</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the abstraction's receipt</div>
+        <h2 class="title reveal" style="font-size:52px;">So What Does a GraphQL <span class="hl">Subscription Buy You?</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:12px;">Comparing L18's <code class="icode">useSubscription</code> to L20's hand-written raw WebSocket, the subscription was quietly handling:</p>
+        <ul class="list reveal">
+            <li><strong>Connection &amp; upgrade routing</strong> — one socket multiplexed for all subscriptions, path negotiation, reconnection</li>
+            <li><strong>Subscription scope</strong> — <code class="icode">subscribe(_, { movieId })</code> args instead of stuffing <code class="icode">?movieId=</code> on a URL</li>
+            <li><strong>Serialization + typing</strong> — responses arrive typed and <code class="icode">__typename</code>-tagged, ready for the cache</li>
+            <li><strong>Cache integration</strong> — results flow into Apollo's normalized cache automatically</li>
+        </ul>
+        <div class="note reveal" style="margin-top:20px;">This isn't "raw WebSocket is worse." It's "abstractions have a cost and a payoff — now you can see both, and choose deliberately."</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">receipt.md</div><div class="spacer"></div><div class="seg right">14 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 15 · UPGRADE ROUTING: ONE HTTP SERVER, TWO SOCKETS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">index.js</div>
+        <div class="breadcrumb">lecture20 / <b>upgrade-routing-two-sockets</b></div>
+    </div>
+    <div class="canvas" style="padding:48px 76px 30px;">
+        <div class="kicker reveal">two websocketservers, one upgrade event</div>
+        <h2 class="title reveal" style="font-size:48px;margin-bottom:16px;">Upgrade Routing: <span class="hl">One HTTP Server, Two Sockets</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/index.js</div>
+        <div class="split reveal">
+            <div class="codeblock xs">
+                <div class="cb-bar">index.js</div>
+                <pre><span class="tok-kw">const</span> graphqlWss <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">WebSocketServer</span><span class="tok-pun">({</span> noServer<span class="tok-pun">:</span> <span class="tok-kw">true</span> <span class="tok-pun">});</span>
+<span class="tok-com">// reviewsWss also { noServer: true }</span>
+httpServer<span class="tok-pun">.</span><span class="tok-fn">on</span><span class="tok-pun">(</span><span class="tok-str">'upgrade'</span><span class="tok-pun">, (</span>request<span class="tok-pun">,</span> socket<span class="tok-pun">,</span> head<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">const</span> <span class="tok-pun">{</span> pathname <span class="tok-pun">}</span> <span class="tok-op">=</span> <span class="tok-kw">new</span> <span class="tok-cls">URL</span><span class="tok-pun">(</span>
+    request<span class="tok-pun">.</span>url<span class="tok-pun">, </span><span class="tok-str">`http://${</span>request<span class="tok-pun">.</span>headers<span class="tok-pun">.</span>host<span class="tok-str">}`</span><span class="tok-pun">);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(</span>pathname <span class="tok-op">===</span> <span class="tok-str">'/graphql'</span><span class="tok-pun">)</span>
+    graphqlWss<span class="tok-pun">.</span><span class="tok-fn">handleUpgrade</span><span class="tok-pun">(...);</span>
+  <span class="tok-kw">else if</span> <span class="tok-pun">(</span>pathname <span class="tok-op">===</span> <span class="tok-str">'/ws/reviews'</span><span class="tok-pun">)</span>
+    reviewsWss<span class="tok-pun">.</span><span class="tok-fn">handleUpgrade</span><span class="tok-pun">(...);</span>
+  <span class="tok-kw">else</span> socket<span class="tok-pun">.</span><span class="tok-fn">destroy</span><span class="tok-pun">();</span>
+<span class="tok-pun">});</span></pre>
+            </div>
+            <div class="reveal" style="height:360px;min-height:0;display:flex;align-items:center;justify-content:center;">
+            <svg viewBox="0 0 700 400" width="auto" height="100%" style="display:block;overflow:visible;max-width:100%;" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="ur-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#7dcfff"/></marker>
+              </defs>
+              <rect x="190" y="10" width="320" height="70" rx="10" fill="#1f2335" stroke="#7aa2f7" stroke-width="2.5"/>
+              <text x="350" y="52" text-anchor="middle" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#7aa2f7">httpServer</text>
+
+              <path d="M350,80 L350,110" stroke="#7dcfff" stroke-width="2" fill="none" marker-end="url(#ur-a)"/>
+              <text x="360" y="102" font-family="JetBrains Mono" font-size="12" fill="#7dcfff">'upgrade'</text>
+
+              <rect x="230" y="120" width="240" height="56" rx="10" fill="#15161f" stroke="#565f89" stroke-width="2"/>
+              <text x="350" y="154" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#9aa5ce">route by pathname</text>
+
+              <path d="M300,176 L180,230" stroke="#9ece6a" stroke-width="2" fill="none" marker-end="url(#ur-a)"/>
+              <path d="M400,176 L520,230" stroke="#bb9af7" stroke-width="2" fill="none" marker-end="url(#ur-a)"/>
+
+              <rect x="20" y="240" width="320" height="140" rx="12" fill="#1f2335" stroke="#9ece6a" stroke-width="2.5"/>
+              <text x="180" y="278" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#9ece6a">graphqlWss</text>
+              <text x="180" y="302" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">/graphql</text>
+              <text x="180" y="326" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">graphql-ws subscriptions</text>
+              <text x="180" y="350" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">(existing, since L18)</text>
+
+              <rect x="360" y="240" width="320" height="140" rx="12" fill="#1f2335" stroke="#bb9af7" stroke-width="2.5"/>
+              <text x="520" y="278" text-anchor="middle" font-family="JetBrains Mono" font-size="16" font-weight="700" fill="#bb9af7">reviewsWss</text>
+              <text x="520" y="302" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#c0caf5">/ws/reviews</text>
+              <text x="520" y="326" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">raw review broadcast</text>
+              <text x="520" y="350" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#565f89">(new in L20)</text>
+            </svg>
+            </div>
+        </div>
+        <div class="note warn reveal" style="margin-top:14px;">A WebSocket connection starts as an HTTP request with an <code class="icode">Upgrade: websocket</code> header. Two <code class="icode">{ server, path }</code> WebSocketServers on one HTTP server fight over the <code class="icode">upgrade</code> event, so we route it ourselves — one more thing graphql-ws normally hides.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">index.js</div><div class="spacer"></div><div class="seg right">15 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · CHOOSING A TRANSPORT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">decision.md</div>
+        <div class="breadcrumb">lecture20 / <b>choosing-a-transport</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">match the tool to the direction you actually need</div>
+        <h2 class="title reveal">Choosing a <span class="hl">Transport</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Your need</th><th>Reach for</th></tr></thead>
+            <tbody>
+                <tr><td>One-directional, server → client (notifications, feeds, <strong>AI token streaming</strong>)</td><td style="color:var(--green);font-weight:700;">SSE</td></tr>
+                <tr><td>Two-directional or high-frequency (chat, collaborative editing, multiplayer)</td><td style="color:var(--purple);font-weight:700;">WebSocket</td></tr>
+                <tr><td>Already using GraphQL and just want to push data updates</td><td style="color:var(--cyan);font-weight:700;">GraphQL Subscription</td></tr>
+                <tr><td>Occasional, low-frequency updates</td><td style="color:var(--fg-dim);font-weight:700;">Polling</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:22px;">Defaults matter: SSE is simpler than WebSocket and covers a surprising amount (anything one-way). Reach for a raw WebSocket only when you genuinely need the client → server direction too. And if you're already in GraphQL, a Subscription usually beats hand-rolling either one.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">decision.md</div><div class="spacer"></div><div class="seg right">16 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">lecture20</div>
+        <div class="breadcrumb">lecture20 / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <ul class="list reveal">
+            <li>The spectrum: polling → long-polling → SSE → WebSocket, and what each trades off</li>
+            <li><strong>SSE</strong>: <code class="icode">text/event-stream</code>, the <code class="icode">data:\n\n</code> wire format, <code class="icode">EventSource</code> (and its GET-only limit) — the transport behind "AI typing" UIs</li>
+            <li><strong>Raw WebSocket</strong>: full-duplex, manual scope/serialization/lifecycle — the same live-review feature L18 got "for free" from a GraphQL Subscription</li>
+            <li>What abstractions cost and buy: seeing the hand-written version makes graphql-ws's conveniences concrete</li>
+            <li>Choosing deliberately: SSE for one-way, WebSocket for two-way, Subscriptions when already in GraphQL, polling when it's enough</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;">🎬 <b>Live demo code:</b> <code class="icode">sample_code/lecture20/reeltalk</code> + <code class="icode">reeltalk-api</code> (App C, v0.3 — final). This completes App C, and the front-end arc: L18 GraphQL data layer → L19 rendering &amp; styling → L20 real-time.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">lecture20</div><div class="spacer"></div><div class="seg right">17 / 18</div></div>
+</div>
+</section>
+
+<!-- ============ 18 · FINALE: FRONT-END ARC COMPLETE ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="finale-badge reveal">
+        <div class="fb-ring">🏁</div>
+        <div class="fb-text">Front-End Arc Complete</div>
+    </div>
+    <div class="sectitle reveal" style="margin-top:36px;font-size:76px;">L18 <span class="hl">→</span> L19 <span class="hl">→</span> L20</div>
+    <div class="note ok reveal" style="margin-top:32px;width:1000px;max-width:80%;text-align:left;">This is the last of the added front-end lectures (L18–L20). Good luck with the Final Project!</div>
+</div></div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'lecture20-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lecture20.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>
