@@ -1,0 +1,18 @@
+.header {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.poster {
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.genres {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+}

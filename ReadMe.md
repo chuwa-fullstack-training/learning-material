@@ -54,7 +54,7 @@ The course follows a three-phase model:
 |---|---|---|
 | 🔴 Awareness | L1–L6 | Disabled — build intuition through struggle before AI enters the picture |
 | 🟡 Comparison | L7–L13 | Mirror — write your own solution first, then compare it against AI's |
-| 🟢 Ownership | L14–L17 + Final Project | Accelerator — use AI freely, but you review, judge, and are accountable for the result |
+| 🟢 Ownership | L14–L20 + Final Project | Accelerator — use AI freely, but you review, judge, and are accountable for the result |
 
 A few things to keep in mind as you move through it:
 

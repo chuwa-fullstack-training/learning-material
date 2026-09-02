@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bonus Lecture — TypeScript in AI Development</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=hanken-grotesk@400,500,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+
+<style>
+/* === THEME: Tokyo Night IDE (matches lecture1–20) === */
+:root {
+    --stage-bg:    #0b0d17;
+    --slide-bg:    #0b0d17;
+    --win-bg:      #1a1b26;
+    --win-bar:     #16161e;
+    --panel:       #1f2335;
+    --panel-2:     #232846;
+    --border:      #2a2e45;
+    --border-soft: #20243a;
+    --fg:          #c0caf5;
+    --fg-dim:      #9aa5ce;
+    --fg-faint:    #565f89;
+    --blue:   #7aa2f7;
+    --cyan:   #7dcfff;
+    --green:  #9ece6a;
+    --purple: #bb9af7;
+    --orange: #ff9e64;
+    --red:    #f7768e;
+    --yellow: #e0af68;
+    --teal:   #73daca;
+    --accent:   var(--blue);
+    --accent-2: var(--cyan);
+    --font-display: 'Cabinet Grotesk', sans-serif;
+    --font-body:    'Hanken Grotesk', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.62s;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* === FIXED 16:9 STAGE === */
+html, body { width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-viewport { position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000); }
+.deck-stage { position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff); }
+.slide { position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff); }
+.slide.active, .slide.visible { visibility:visible;opacity:1;pointer-events:auto;z-index:1; }
+img,video,canvas,svg { max-width:100%;max-height:100%; }
+.deck-controls { position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000; }
+@media print {
+    html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+    .deck-viewport{position:static;overflow:visible;background:#fff;}
+    .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+    .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+    .slide:last-child{break-after:auto;page-break-after:auto;}
+    .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:0.01ms!important;transition-duration:0.2s!important; } }
+
+/* === EDITOR WINDOW SHELL === */
+.slide {
+    background:
+        radial-gradient(1200px 700px at 85% -10%, rgba(122,162,247,0.10), transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(125,207,255,0.07), transparent 55%),
+        var(--stage-bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    padding:56px 64px;
+}
+.win { width:100%;height:100%;background:var(--win-bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 40px 120px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.03);display:flex;flex-direction:column;overflow:hidden; }
+.titlebar { height:64px;flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;background:linear-gradient(180deg,#1c1d2b,var(--win-bar));border-bottom:1px solid var(--border-soft); }
+.dots { display:flex;gap:10px; }
+.dots span { width:14px;height:14px;border-radius:50%;display:block; }
+.dots .r { background:#f7768e; } .dots .y { background:#e0af68; } .dots .g { background:#9ece6a; }
+.tab { font-family:var(--font-mono);font-size:19px;font-weight:500;color:var(--fg-dim);background:var(--win-bg);padding:8px 18px;border-radius:9px 9px 0 0;border:1px solid var(--border-soft);border-bottom:none;position:relative;top:1px;display:flex;align-items:center;gap:10px; }
+.tab::before { content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px var(--accent); }
+.tab .dirty { color:var(--fg-faint); }
+.breadcrumb { margin-left:auto;font-family:var(--font-mono);font-size:16px;color:var(--fg-faint);letter-spacing:0.04em; }
+.breadcrumb b { color:var(--cyan);font-weight:500; }
+.canvas { flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:60px 76px 40px;position:relative; }
+.canvas::before { content:"";position:absolute;left:0;top:0;bottom:0;width:64px;background:linear-gradient(90deg,rgba(86,95,137,0.10),transparent);border-right:1px solid var(--border-soft); }
+.statusbar { height:52px;flex:0 0 52px;display:flex;align-items:center;background:linear-gradient(90deg,var(--accent),#5a7fd6);color:#0b0d17;font-family:var(--font-mono);font-size:16px;font-weight:500; }
+.statusbar .seg { padding:0 20px;height:100%;display:flex;align-items:center;gap:9px; }
+.statusbar .seg.branch { background:rgba(0,0,0,0.18); }
+.statusbar .spacer { flex:1; }
+.statusbar .seg.right { background:rgba(0,0,0,0.10); }
+
+/* === TYPOGRAPHY === */
+.kicker { font-family:var(--font-mono);font-size:20px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:18px;display:flex;align-items:center;gap:12px; }
+.kicker::before { content:"//";color:var(--fg-faint); }
+h2.title { font-family:var(--font-display);font-weight:800;font-size:74px;line-height:1.02;letter-spacing:-0.02em;color:var(--fg);margin-bottom:30px; }
+h2.title .hl { color:var(--accent); }
+h2.title.sm { font-size:60px; }
+.lead-in { font-size:27px;color:var(--fg-dim);line-height:1.5;max-width:1300px;margin-bottom:24px; }
+
+ul.list { list-style:none;display:flex;flex-direction:column;gap:16px; }
+ul.list li { font-size:28px;line-height:1.4;color:var(--fg);padding-left:38px;position:relative; }
+ul.list li::before { content:"▸";position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--font-mono); }
+ul.list li.sub { padding-left:72px;font-size:24px;color:var(--fg-dim); }
+ul.list li.sub::before { content:"└";left:38px;color:var(--fg-faint); }
+ul.list strong { color:var(--cyan);font-weight:700; }
+ul.list em { color:var(--orange);font-style:normal; }
+code, .mono { font-family:var(--font-mono); }
+.icode { font-family:var(--font-mono);font-size:0.86em;background:var(--panel);color:var(--teal);padding:3px 10px;border-radius:6px;border:1px solid var(--border); }
+
+/* Columns */
+.cols { display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;min-height:0;align-content:start; }
+.cols.c3 { grid-template-columns:1fr 1fr 1fr; }
+.col-card { background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:34px 36px;display:flex;flex-direction:column;gap:16px; }
+.col-card h3 { font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed var(--border); }
+.col-card.accent-blue h3   { color:var(--blue); }
+.col-card.accent-cyan h3   { color:var(--cyan); }
+.col-card.accent-orange h3 { color:var(--orange); }
+.col-card.accent-teal h3   { color:var(--teal); }
+.col-card.accent-purple h3 { color:var(--purple); }
+
+/* Split */
+.split { display:grid;grid-template-columns:1fr 1.1fr;gap:44px;flex:1;min-height:0;align-items:start; }
+.split.eq { grid-template-columns:1fr 1fr; }
+
+/* Code block */
+.codeblock { background:#15161f;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:6px 0; }
+.codeblock .cb-bar { background:var(--win-bar);padding:10px 18px;font-family:var(--font-mono);font-size:15px;color:var(--fg-faint);border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px; }
+.codeblock .cb-bar::before { content:"";width:8px;height:8px;border-radius:50%;background:var(--green); }
+.codeblock pre { padding:26px 30px;font-family:var(--font-mono);font-size:26px;line-height:1.6;color:var(--fg);white-space:pre;font-variant-ligatures:none;-webkit-font-feature-settings:"liga" 0,"calt" 0;font-feature-settings:"liga" 0,"calt" 0; }
+.codeblock.sm pre { font-size:22px;padding:20px 26px;line-height:1.58; }
+.codeblock.xs pre { font-size:18px;padding:16px 22px;line-height:1.55; }
+.tok-kw  { color:var(--purple); }
+.tok-fn  { color:var(--blue); }
+.tok-str { color:var(--green); }
+.tok-num { color:var(--orange); }
+.tok-com { color:var(--fg-faint);font-style:italic; }
+.tok-pun { color:var(--fg-dim); }
+.tok-out { color:var(--teal); }
+.tok-op  { color:var(--red); }
+.tok-cls { color:var(--yellow); }
+
+/* Note */
+.note { margin-top:auto;background:linear-gradient(90deg,rgba(122,162,247,0.10),transparent);border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:22px 28px;font-size:24px;line-height:1.45;color:var(--fg-dim); }
+.note b { color:var(--cyan); }
+.note.warn { border-left-color:var(--red);background:linear-gradient(90deg,rgba(247,118,142,0.12),transparent); }
+.note.warn b { color:var(--red); }
+.note.ok { border-left-color:var(--green);background:linear-gradient(90deg,rgba(158,206,106,0.10),transparent); }
+.note.ok b { color:var(--green); }
+.note.caution { border-left-color:var(--yellow);background:linear-gradient(90deg,rgba(224,175,104,0.12),transparent); }
+.note.caution b { color:var(--yellow); }
+.note.demo { border-left-color:var(--teal);background:linear-gradient(90deg,rgba(115,218,202,0.12),transparent); }
+.note.demo b { color:var(--teal); }
+
+/* File-mark chip (which live-demo file a slide's code corresponds to) */
+.filemark { display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:16px;color:var(--teal);background:rgba(115,218,202,0.08);border:1px solid rgba(115,218,202,0.32);padding:7px 16px;border-radius:8px;margin-bottom:16px; }
+.filemark::before { content:"🎬";font-size:14px; }
+
+/* LEAD / SECTION DIVIDER */
+.slide.lead { padding:0; }
+.slide.lead .win { border-radius:0;border:none;box-shadow:none;background:transparent; }
+.slide.lead .canvas { padding:0;align-items:center;justify-content:center;text-align:center; }
+.slide.lead .canvas::before { display:none; }
+.terminal { width:1240px;max-width:80%;background:var(--win-bg);border:1px solid var(--border);border-radius:18px;box-shadow:0 50px 140px rgba(0,0,0,0.6);overflow:hidden;text-align:left; }
+.terminal .titlebar { height:58px;flex:none; }
+.terminal .tbody { padding:40px 48px 52px;font-family:var(--font-mono); }
+.prompt { font-size:26px;color:var(--green);margin-bottom:10px; }
+.prompt .path { color:var(--blue); }
+.prompt .cmd  { color:var(--fg); }
+.term-out { font-size:22px;color:var(--fg-faint);margin-bottom:28px; }
+.lead h1 { font-family:var(--font-display);font-weight:800;font-size:92px;line-height:1.0;letter-spacing:-0.025em;color:var(--fg);margin:8px 0 6px; }
+.lead h1 .hl { color:var(--accent); }
+.lead .by { font-family:var(--font-mono);font-size:30px;color:var(--cyan); }
+.lead .section-num { font-family:var(--font-mono);font-size:22px;color:var(--fg-faint);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:18px; }
+.cursor { display:inline-block;width:14px;height:30px;background:var(--accent);margin-left:6px;vertical-align:middle;animation:blink 1.05s steps(2,start) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.lead .sectitle { font-family:var(--font-display);font-weight:800;font-size:104px;line-height:1.0;letter-spacing:-0.03em;color:var(--fg); }
+.lead .sectitle .hl { color:var(--accent); }
+
+/* Comparison table */
+.comp-table { width:100%;border-collapse:collapse;font-family:var(--font-mono);flex-shrink:0; }
+.comp-table th { background:var(--panel-2);color:var(--cyan);font-size:20px;font-weight:700;padding:16px 20px;text-align:left;border:1px solid var(--border); }
+.comp-table td { background:var(--panel);color:var(--fg-dim);font-size:19px;padding:14px 20px;border:1px solid var(--border);line-height:1.5; }
+.comp-table td strong { color:var(--fg);font-weight:700; }
+.comp-table td code { font-family:var(--font-mono);background:var(--panel-2);color:var(--teal);padding:2px 8px;border-radius:5px; }
+.comp-table tr:nth-child(even) td { background:rgba(31,35,53,0.5); }
+
+/* Shared: rendering-pipeline diagram (from lecture5+) */
+.pipeline { display:flex;align-items:center;flex:1;min-height:0;gap:0; }
+.pipe-step { flex:1;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px 22px;text-align:center;display:flex;flex-direction:column;gap:10px; }
+.pipe-step .pipe-icon { font-size:34px; }
+.pipe-step .pipe-name { font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--fg); }
+.pipe-step .pipe-desc { font-size:16px;color:var(--fg-dim);line-height:1.4; }
+.pipe-arrow { flex:0 0 56px;text-align:center;font-size:30px;color:var(--fg-faint); }
+.pipe-step.p-blue   { border-color:rgba(122,162,247,0.5); } .pipe-step.p-blue .pipe-name   { color:var(--blue); }
+.pipe-step.p-cyan   { border-color:rgba(125,207,255,0.5); } .pipe-step.p-cyan .pipe-name   { color:var(--cyan); }
+.pipe-step.p-orange { border-color:rgba(255,158,100,0.5); } .pipe-step.p-orange .pipe-name { color:var(--orange); }
+.pipe-step.p-teal   { border-color:rgba(115,218,202,0.5); } .pipe-step.p-teal .pipe-name   { color:var(--teal); }
+.pipe-step.p-purple { border-color:rgba(187,154,247,0.5); } .pipe-step.p-purple .pipe-name { color:var(--purple); }
+
+/* Reveal animations */
+.reveal { opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.slide.visible .reveal { opacity:1;transform:translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay:.06s; }
+.slide.visible .reveal:nth-child(2) { transition-delay:.13s; }
+.slide.visible .reveal:nth-child(3) { transition-delay:.20s; }
+.slide.visible .reveal:nth-child(4) { transition-delay:.27s; }
+.slide.visible .reveal:nth-child(5) { transition-delay:.34s; }
+.slide.visible .reveal:nth-child(6) { transition-delay:.41s; }
+.slide.visible .reveal:nth-child(7) { transition-delay:.48s; }
+.slide.visible .reveal:nth-child(8) { transition-delay:.55s; }
+
+/* Deck chrome */
+#progress { position:fixed;top:0;left:0;height:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--cyan));z-index:1000;transition:width .35s var(--ease);box-shadow:0 0 14px var(--accent); }
+.edit-hotzone { position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer; }
+.edit-toggle { position:fixed;top:18px;left:18px;z-index:10001;width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:var(--win-bar);color:var(--fg);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .3s ease; }
+.edit-toggle.show, .edit-toggle.active { opacity:1;pointer-events:auto; }
+.edit-toggle.active { background:var(--accent);color:#0b0d17;border-color:var(--accent); }
+.editing [contenteditable="true"] { outline:1px dashed var(--accent);outline-offset:4px;border-radius:4px; }
+#hint { position:fixed;bottom:16px;right:18px;z-index:1000;font-family:var(--font-mono);font-size:13px;color:var(--fg-faint);background:rgba(22,22,30,0.7);padding:6px 12px;border-radius:8px;border:1px solid var(--border-soft);transition:opacity .5s;backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+<div id="hint">← → navigate · E edit · F fullscreen</div>
+
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ============ 01 · TITLE ============ -->
+<section class="slide lead active">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">typescript-ai.ts <span class="dirty">— bonus</span></div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">aaron@course</span> <span class="cmd">$ tsc typescript-ai.ts</span></div>
+            <div class="term-out">› Loading: zod · structured output · tool calling · MCP</div>
+            <div class="section-num">Bonus Lecture</div>
+            <h1>TypeScript in <span class="hl">AI Development</span></h1>
+            <div class="by">// the type system's job when the input is a model<span class="cursor"></span></div>
+        </div>
+    </div>
+    <div class="note caution reveal" style="width:1240px;max-width:80%;margin-top:40px;text-align:left;">
+        🟡 <b>Schemas and contracts are your design work. Boilerplate wiring can reference AI.</b> Deciding WHAT a zod schema should validate, WHERE a type boundary belongs, and WHICH parts of a tool/agent contract must be checked — these are your judgment calls. Once the shape is decided, the SDK/handler wiring can be AI-assisted.
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 02 · WHY THIS LECTURE EXISTS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">why.md</div>
+        <div class="breadcrumb">typescript-ai / <b>why-this-lecture-exists</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the core idea, upfront</div>
+        <h2 class="title reveal">Why This Lecture <span class="hl">Exists</span></h2>
+        <p class="lead-in reveal">TypeScript has become the dominant language for <strong style="color:var(--cyan);">applied AI product development</strong> — not because AI needs TypeScript, but because AI output is fundamentally <strong style="color:var(--orange);">untyped</strong>, and TypeScript is how you build a safe boundary around it.</p>
+        <ul class="list reveal">
+            <li>An LLM's response is a string. Always. Even "structured output" is a string that <em>looks</em> like JSON.</li>
+            <li>Every layer of a real AI product — API calls, tool calling, agents, MCP — is really the same question asked again: <strong>how do I trust data I didn't generate myself?</strong></li>
+            <li>This lecture is about that one recurring problem, seen from four angles.</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">why.md</div><div class="spacer"></div><div class="seg right">02 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 03 · TOPICS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">topics.md</div>
+        <div class="breadcrumb">typescript-ai / <b>topics</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">what's ahead</div>
+        <h2 class="title reveal">Topics</h2>
+        <ul class="list reveal">
+            <li>The AI product path — and where TypeScript sits on it</li>
+            <li>Structured output with <strong>zod</strong>: schema as single source of truth</li>
+            <li>Typed streaming (recap + extension of L20's SSE)</li>
+            <li>TypeScript in <strong>tool calling / agents</strong></li>
+            <li>TypeScript in <strong>MCP</strong></li>
+            <li>TypeScript across the AI SDK ecosystem</li>
+        </ul>
+        <div class="note demo reveal" style="margin-top:20px;"><b>Live demo:</b> <code class="icode">sample_code/typescript-ai/reeltalk</code> + <code class="icode">reeltalk-api</code> — a TypeScript port of L20's ReelTalk, with the "AI summary" upgraded from a plain string to a <b>zod-validated structured output</b>. Plus a standalone MCP tool: <code class="icode">sample_code/typescript-ai/mcp-movie-tool</code>.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">topics.md</div><div class="spacer"></div><div class="seg right">03 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 04 · THE AI PRODUCT PATH ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">path.md</div>
+        <div class="breadcrumb">typescript-ai / <b>the-ai-product-path</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">five stages, one recurring question</div>
+        <h2 class="title reveal" style="font-size:58px;">The AI Product <span class="hl">Path</span></h2>
+        <div class="pipeline reveal">
+            <div class="pipe-step p-blue"><div class="pipe-icon">🧪</div><div class="pipe-name">Prompt Prototype</div><div class="pipe-desc">fast iteration, zero guarantees</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-cyan"><div class="pipe-icon">📦</div><div class="pipe-name">Structured Output</div><div class="pipe-desc">today's main demo</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-orange"><div class="pipe-icon">🛠️</div><div class="pipe-name">Tool Calling / Agents</div><div class="pipe-desc">the model now takes actions</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-teal"><div class="pipe-icon">🔌</div><div class="pipe-name">MCP / External Tools</div><div class="pipe-desc">actions cross a process boundary</div></div>
+            <div class="pipe-arrow">→</div>
+            <div class="pipe-step p-purple"><div class="pipe-icon">🚀</div><div class="pipe-name">Production</div><div class="pipe-desc">streaming, errors, observability</div></div>
+        </div>
+        <div class="note reveal" style="margin-top:20px;">Every arrow above is a place where <b>something you don't control</b> (a model's output) has to become <b>something your code can trust</b>. That conversion point is where TypeScript earns its keep — not by making the model more reliable, but by making the boundary around it reliable.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">path.md</div><div class="spacer"></div><div class="seg right">04 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 05 · WHERE TYPESCRIPT ACTUALLY SITS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">boundary.md</div>
+        <div class="breadcrumb">typescript-ai / <b>where-typescript-actually-sits</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one job, everywhere</div>
+        <h2 class="title reveal">Where TypeScript <span class="hl">Actually Sits</span></h2>
+        <p class="lead-in reveal" style="margin-bottom:14px;">TypeScript does <strong style="color:var(--red);">not</strong> make an LLM's output correct. It makes exactly one thing true everywhere in this path:</p>
+        <div class="note ok reveal" style="margin:0 0 20px;"><b>Nothing downstream can accidentally treat unchecked data as trusted data.</b></div>
+        <ul class="list reveal">
+            <li><code class="icode">unknown</code> (not <code class="icode">any</code>) is the honest type for "a model produced this"</li>
+            <li>A schema (zod) is the single place that decides what "valid" means</li>
+            <li>A type (<code class="icode">z.infer</code>) is <em>derived</em> from that schema — never hand-written separately, or the two drift apart</li>
+            <li>Every section ahead applies this same pattern at a different boundary: HTTP response, stream chunk, tool call, MCP request</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">boundary.md</div><div class="spacer"></div><div class="seg right">05 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 06 · SECTION DIVIDER: STRUCTURED OUTPUT ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">movieSummary.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 1</span></div>
+            <div class="sectitle">Structured <span class="hl">Output</span></div>
+            <div class="by" style="margin-top:18px;">zod — from a string to a value your code can trust<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 07 · THE PROBLEM: A STRING IS NOT A TYPE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">problem.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>a-string-is-not-a-type</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">where trust breaks down</div>
+        <h2 class="title reveal" style="font-size:58px;">The Problem: A String <span class="hl">Is Not a Type</span></h2>
+        <div class="codeblock reveal">
+            <div class="cb-bar">problem.ts</div>
+            <pre><span class="tok-com">// What an LLM call actually returns — always, no matter what</span>
+<span class="tok-com">// the SDK's TypeScript types claim about the "structured" response.</span>
+<span class="tok-kw">const</span> raw<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-op">=</span> <span class="tok-kw">await</span> <span class="tok-fn">callModel</span><span class="tok-pun">(</span>prompt<span class="tok-pun">);</span>
+
+<span class="tok-kw">const</span> parsed <span class="tok-op">=</span> <span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>raw<span class="tok-pun">);</span> <span class="tok-com">// `any`. Could be anything. Could throw.</span>
+parsed<span class="tok-pun">.</span>rating<span class="tok-pun">.</span><span class="tok-fn">toFixed</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">);</span>  <span class="tok-com">// compiles. crashes if rating is a string,</span>
+                          <span class="tok-com">// or missing, or the model added an extra field.</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li>TypeScript can't help here — <code class="icode">JSON.parse</code> returns <code class="icode">any</code> by design</li>
+            <li>The type system was bypassed the moment untyped JSON entered the program</li>
+            <li>True whether the JSON came from an LLM, a webhook, or <code class="icode">req.body</code> — same problem, different source</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">problem.ts</div><div class="spacer"></div><div class="seg right">07 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 08 · THE FIX: SCHEMA FIRST, TYPE DERIVED ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">movieSummary.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>schema-first-type-derived</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the single source of truth</div>
+        <h2 class="title reveal">The Fix: Schema First, <span class="hl">Type Derived</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/schema/movieSummary.ts</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">movieSummary.ts</div>
+            <pre><span class="tok-kw">import</span> <span class="tok-pun">{</span> z <span class="tok-pun">}</span> <span class="tok-kw">from</span> <span class="tok-str">'zod'</span><span class="tok-pun">;</span>
+<span class="tok-kw">export const</span> MovieSummarySchema <span class="tok-op">=</span> z<span class="tok-pun">.</span><span class="tok-fn">object</span><span class="tok-pun">({</span>
+  rating<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">number</span><span class="tok-pun">().</span><span class="tok-fn">min</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">).</span><span class="tok-fn">max</span><span class="tok-pun">(</span><span class="tok-num">5</span><span class="tok-pun">),</span>
+  verdict<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">string</span><span class="tok-pun">().</span><span class="tok-fn">min</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">),</span>
+  tags<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">array</span><span class="tok-pun">(</span>z<span class="tok-pun">.</span><span class="tok-fn">string</span><span class="tok-pun">()).</span><span class="tok-fn">min</span><span class="tok-pun">(</span><span class="tok-num">1</span><span class="tok-pun">).</span><span class="tok-fn">max</span><span class="tok-pun">(</span><span class="tok-num">5</span><span class="tok-pun">),</span>
+<span class="tok-pun">});</span>
+<span class="tok-com">// INFERRED, not hand-written — one source of truth, not two</span>
+<span class="tok-kw">export type</span> MovieSummary <span class="tok-op">=</span> z<span class="tok-pun">.</span><span class="tok-fn">infer</span><span class="tok-op">&lt;</span><span class="tok-kw">typeof</span> MovieSummarySchema<span class="tok-op">&gt;</span><span class="tok-pun">;</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:12px;">
+            <li>The schema is runtime code (it actually validates) <strong>and</strong> a compile-time type via <code class="icode">z.infer</code> — a hand-written <code class="icode">interface</code> is only the second half</li>
+            <li><code class="icode">.min()</code> / <code class="icode">.max()</code> encode business rules a bare TS interface cannot express at all</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">movieSummary.ts</div><div class="spacer"></div><div class="seg right">08 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 09 · THE FIX: VALIDATE AT THE BOUNDARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">summarySSE.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>validate-at-the-boundary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">unknown, until proven otherwise</div>
+        <h2 class="title reveal">The Fix: Validate <span class="hl">at the Boundary</span></h2>
+        <div class="filemark reveal">reeltalk-api/src/summarySSE.ts</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">summarySSE.ts</div>
+            <pre><span class="tok-com">// buildRawSummary() returns `unknown` — untrusted, on purpose</span>
+<span class="tok-kw">function</span> <span class="tok-fn">buildRawSummary</span><span class="tok-pun">(</span>movie<span class="tok-pun">:</span> <span class="tok-cls">Movie</span><span class="tok-pun">):</span> <span class="tok-cls">unknown</span> <span class="tok-pun">{</span> <span class="tok-com">/* ... */</span> <span class="tok-pun">}</span>
+<span class="tok-kw">const</span> parsed <span class="tok-op">=</span> MovieSummarySchema<span class="tok-pun">.</span><span class="tok-fn">safeParse</span><span class="tok-pun">(</span><span class="tok-fn">buildRawSummary</span><span class="tok-pun">(</span>movie<span class="tok-pun">));</span>
+<span class="tok-kw">if</span> <span class="tok-pun">(!</span>parsed<span class="tok-pun">.</span>success<span class="tok-pun">) {</span>
+  res<span class="tok-pun">.</span><span class="tok-fn">status</span><span class="tok-pun">(</span><span class="tok-num">500</span><span class="tok-pun">).</span><span class="tok-fn">json</span><span class="tok-pun">({</span> message<span class="tok-pun">:</span> <span class="tok-str">'AI summary failed validation'</span> <span class="tok-pun">});</span>
+  <span class="tok-kw">return</span><span class="tok-pun">;</span>
+<span class="tok-pun">}</span>
+<span class="tok-kw">const</span> summary<span class="tok-pun">:</span> <span class="tok-cls">MovieSummary</span> <span class="tok-op">=</span> parsed<span class="tok-pun">.</span>data<span class="tok-pun">;</span> <span class="tok-com">// ← now, and only now, trusted</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:12px;">
+            <li><code class="icode">safeParse</code> never throws — it returns a result you branch on, so a malformed generation degrades gracefully instead of crashing the process</li>
+            <li><code class="icode">unknown</code> is the type that forces this check to exist; <code class="icode">any</code> would have let the bug ship</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">summarySSE.ts</div><div class="spacer"></div><div class="seg right">09 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 10 · DEMO: REELTALK'S AI SUMMARY, UPGRADED ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">demo</div>
+        <div class="breadcrumb">typescript-ai / <b>ai-summary-upgraded</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">before / after, side by side</div>
+        <h2 class="title reveal">Demo: ReelTalk's AI Summary, <span class="hl">Upgraded</span></h2>
+        <div class="split eq reveal">
+            <div>
+                <p style="font-size:19px;color:var(--fg-dim);font-weight:700;margin-bottom:8px;">Before (L20) — a plain string</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">before</div>
+                    <pre><span class="tok-com">// built token by token</span>
+<span class="tok-com">// no shape, no guarantees</span>
+<span class="tok-str">"Spoiler-free take on</span>
+<span class="tok-str"> Nebula Drift..."</span></pre>
+                </div>
+            </div>
+            <div>
+                <p style="font-size:19px;color:var(--cyan);font-weight:700;margin-bottom:8px;">After (this lecture) — validated</p>
+                <div class="codeblock sm">
+                    <div class="cb-bar">after</div>
+                    <pre><span class="tok-pun">{</span>
+  rating<span class="tok-pun">:</span> <span class="tok-num">4</span><span class="tok-pun">,</span>
+  verdict<span class="tok-pun">:</span> <span class="tok-str">"Spoiler-free take on..."</span><span class="tok-pun">,</span>
+  tags<span class="tok-pun">: [</span><span class="tok-str">"drama"</span><span class="tok-pun">,</span> <span class="tok-str">"war"</span><span class="tok-pun">]</span>
+<span class="tok-pun">}</span> <span class="tok-com">// ↑ checked by MovieSummarySchema</span>
+   <span class="tok-com">//   before the client ever sees it</span></pre>
+                </div>
+            </div>
+        </div>
+        <div class="note demo reveal" style="margin-top:16px;">Run it: <code class="icode">sample_code/typescript-ai/reeltalk-api</code> (port 4003) + <code class="icode">reeltalk</code> (port 5173). Click <b>✨ Generate AI summary</b> — the verdict still streams token-by-token over SSE; the rating/tags arrive validated in the <code class="icode">done</code> event.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">demo</div><div class="spacer"></div><div class="seg right">10 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 11 · SECTION DIVIDER: TYPED STREAMING ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">useAiSummary.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 2</span></div>
+            <div class="sectitle">Typed <span class="hl">Streaming</span></div>
+            <div class="by" style="margin-top:18px;">L20 showed the wire format — now, the parsed shape<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 12 · A DISCRIMINATED UNION FOR STREAM STATE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">useAiSummary.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>discriminated-union-for-stream-state</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">status is the discriminant</div>
+        <h2 class="title reveal">A Discriminated Union <span class="hl">for Stream State</span></h2>
+        <div class="filemark reveal">reeltalk/src/hooks/useAiSummary.ts</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">useAiSummary.ts</div>
+            <pre><span class="tok-kw">export type</span> AiSummaryState <span class="tok-op">=</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'idle'</span> <span class="tok-pun">}</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'streaming'</span><span class="tok-pun">;</span> verdict<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-pun">}</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'done'</span><span class="tok-pun">;</span> verdict<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span> rating<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span> tags<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">[] }</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'error'</span><span class="tok-pun">;</span> message<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-pun">};</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li><code class="icode">status</code> is the <strong>discriminant</strong> — the same pattern as lecture6's <code class="icode">ServiceResult&lt;T&gt;</code>, applied to a stream instead of a function return</li>
+            <li><code class="icode">state.rating</code> is only accessible once <code class="icode">state.status === 'done'</code> narrows the union — reading it while <code class="icode">'streaming'</code> is a <strong style="color:var(--red);">compile error</strong>, not a runtime <code class="icode">undefined</code></li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">useAiSummary.ts</div><div class="spacer"></div><div class="seg right">12 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 13 · VALIDATING WHAT ARRIVES MID-STREAM ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">useAiSummary.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>validating-mid-stream</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the client doesn't trust the server either</div>
+        <h2 class="title reveal" style="font-size:58px;">Validating What <span class="hl">Arrives Mid-Stream</span></h2>
+        <div class="filemark reveal">reeltalk/src/hooks/useAiSummary.ts</div>
+        <div class="codeblock xs reveal">
+            <div class="cb-bar">useAiSummary.ts</div>
+            <pre>source<span class="tok-pun">.</span><span class="tok-fn">addEventListener</span><span class="tok-pun">(</span><span class="tok-str">'done'</span><span class="tok-pun">, (</span>event<span class="tok-pun">) =&gt; {</span>
+  <span class="tok-kw">let</span> raw<span class="tok-pun">:</span> <span class="tok-cls">unknown</span><span class="tok-pun">;</span>
+  <span class="tok-kw">try</span> <span class="tok-pun">{</span> raw <span class="tok-op">=</span> <span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>event<span class="tok-pun">.</span>data<span class="tok-pun">);</span> <span class="tok-pun">}</span>
+  <span class="tok-kw">catch</span> <span class="tok-pun">{</span>
+    <span class="tok-kw">return</span> <span class="tok-fn">setState</span><span class="tok-pun">({</span> status<span class="tok-pun">:</span> <span class="tok-str">'error'</span><span class="tok-pun">,</span> message<span class="tok-pun">:</span> <span class="tok-str">'Malformed summary payload'</span> <span class="tok-pun">});</span>
+  <span class="tok-pun">}</span>
+  <span class="tok-kw">const</span> parsed <span class="tok-op">=</span> MovieSummaryTailSchema<span class="tok-pun">.</span><span class="tok-fn">safeParse</span><span class="tok-pun">(</span>raw<span class="tok-pun">);</span>
+  <span class="tok-kw">if</span> <span class="tok-pun">(!</span>parsed<span class="tok-pun">.</span>success<span class="tok-pun">) {</span>
+    <span class="tok-kw">return</span> <span class="tok-fn">setState</span><span class="tok-pun">({</span> status<span class="tok-pun">:</span> <span class="tok-str">'error'</span><span class="tok-pun">,</span> message<span class="tok-pun">:</span> <span class="tok-str">'Summary failed shape validation'</span> <span class="tok-pun">});</span>
+  <span class="tok-pun">}</span>
+  <span class="tok-fn">setState</span><span class="tok-pun">({</span> status<span class="tok-pun">:</span> <span class="tok-str">'done'</span><span class="tok-pun">,</span> verdict<span class="tok-pun">:</span> prev<span class="tok-pun">.</span>verdict<span class="tok-pun">, ...</span>parsed<span class="tok-pun">.</span>data <span class="tok-pun">});</span>
+<span class="tok-pun">});</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:10px;">
+            <li>The <strong>client</strong> re-validates — it does not trust "the server already checked this." The network is a trust boundary in both directions.</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">useAiSummary.ts</div><div class="spacer"></div><div class="seg right">13 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 14 · SECTION DIVIDER: TOOL CALLING & AGENTS ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">tool-calling.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 3</span></div>
+            <div class="sectitle">Tool Calling <span class="hl">&amp; Agents</span></div>
+            <div class="by" style="margin-top:18px;">the model doesn't just talk now — it requests actions<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 15 · WHAT "TOOL CALLING" ACTUALLY IS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">tool-calling.md</div>
+        <div class="breadcrumb">typescript-ai / <b>what-tool-calling-actually-is</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the model requests, your code decides</div>
+        <h2 class="title reveal">What "Tool Calling" <span class="hl">Actually Is</span></h2>
+        <ul class="list reveal">
+            <li>You describe a function to the model: a name, a description, and a <strong>schema</strong> for its arguments</li>
+            <li>The model decides to call it, and produces arguments <strong>matching that schema</strong> — as text, that your code must parse and validate</li>
+            <li>Nothing stops a model from producing malformed or "creatively reinterpreted" arguments — it is guessing at your contract, not executing your code directly</li>
+        </ul>
+        <div class="codeblock reveal" style="margin-top:16px;">
+            <div class="cb-bar">flow</div>
+            <pre>model reads tool description <span class="tok-op">→</span> model emits arguments <span class="tok-com">(JSON text)</span>
+        <span class="tok-op">→</span> <span class="tok-out">YOUR CODE validates</span> <span class="tok-op">→</span> <span class="tok-out">YOUR CODE executes the handler</span></pre>
+        </div>
+        <div class="note warn reveal" style="margin-top:14px;">Executing model-provided arguments without checking them is the same class of bug as <code class="icode">eval()</code>-ing user input.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">tool-calling.md</div><div class="spacer"></div><div class="seg right">15 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 16 · THE SAME ZOD PATTERN, ONE LAYER UP ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">searchMovies.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>the-same-zod-pattern-one-layer-up</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">the boundary moved, the technique didn't</div>
+        <h2 class="title reveal">The Same zod Pattern, <span class="hl">One Layer Up</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">searchMovies.ts</div>
+            <pre><span class="tok-com">// The tool's argument schema — the model's "function signature"</span>
+<span class="tok-kw">const</span> SearchMoviesInput <span class="tok-op">=</span> z<span class="tok-pun">.</span><span class="tok-fn">object</span><span class="tok-pun">({</span>
+  genre<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">enum</span><span class="tok-pun">([</span><span class="tok-str">'drama'</span><span class="tok-pun">,</span> <span class="tok-str">'sci-fi'</span><span class="tok-pun">,</span> <span class="tok-str">'comedy'</span><span class="tok-pun">,</span> <span class="tok-str">'horror'</span><span class="tok-pun">]),</span>
+  minRating<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">number</span><span class="tok-pun">().</span><span class="tok-fn">min</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">).</span><span class="tok-fn">max</span><span class="tok-pun">(</span><span class="tok-num">5</span><span class="tok-pun">).</span><span class="tok-fn">default</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">),</span>
+<span class="tok-pun">});</span>
+
+<span class="tok-kw">async function</span> <span class="tok-fn">searchMoviesHandler</span><span class="tok-pun">(</span>rawArgs<span class="tok-pun">:</span> <span class="tok-cls">unknown</span><span class="tok-pun">) {</span>
+  <span class="tok-kw">const</span> args <span class="tok-op">=</span> SearchMoviesInput<span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">(</span>rawArgs<span class="tok-pun">);</span> <span class="tok-com">// throws on bad input, by design</span>
+  <span class="tok-kw">return</span> movies<span class="tok-pun">.</span><span class="tok-fn">filter</span><span class="tok-pun">((</span>m<span class="tok-pun">) =&gt;</span> m<span class="tok-pun">.</span>genre <span class="tok-op">===</span> args<span class="tok-pun">.</span>genre <span class="tok-op">&amp;&amp;</span> m<span class="tok-pun">.</span>averageRating <span class="tok-op">&gt;=</span> args<span class="tok-pun">.</span>minRating<span class="tok-pun">);</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:14px;">
+            <li>Same <strong>schema → derive-a-type → validate-before-use</strong> pattern as the AI summary — the boundary moved, the technique didn't</li>
+            <li>This is exactly what <code class="icode">sample_code/typescript-ai/mcp-movie-tool</code> does, generalized to a protocol (next section)</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">searchMovies.ts</div><div class="spacer"></div><div class="seg right">16 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 17 · SECTION DIVIDER: MCP ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">index.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 4</span></div>
+            <div class="sectitle"><span class="hl">MCP</span></div>
+            <div class="by" style="margin-top:18px;">tool calling, standardized — and made cross-process<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 18 · MCP IS TOOL CALLING ACROSS A PROCESS BOUNDARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mcp-concept.md</div>
+        <div class="breadcrumb">typescript-ai / <b>mcp-across-a-process-boundary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">same contract, now cross-process</div>
+        <h2 class="title reveal" style="font-size:52px;">MCP Is Tool Calling <span class="hl">Across a Process Boundary</span></h2>
+        <ul class="list reveal">
+            <li>Tool calling (previous section) works when the tool is a function in the <strong>same process</strong> as your app</li>
+            <li><strong>MCP (Model Context Protocol)</strong> standardizes that same contract so tools can live in a <strong>separate process</strong> — a different language, a different machine, a shared ecosystem of agents and tools</li>
+            <li>The official <code class="icode">@modelcontextprotocol/sdk</code> is <strong style="color:var(--cyan);">TypeScript-first</strong> — not a coincidence, given everything so far in this lecture</li>
+        </ul>
+        <div class="codeblock reveal" style="margin-top:16px;">
+            <div class="cb-bar">mcp-flow</div>
+            <pre>Agent <span class="tok-pun">(Claude, etc.)</span> <span class="tok-op">⇄</span> MCP protocol <span class="tok-op">⇄</span> your MCP server <span class="tok-op">⇄</span> your handler
+                        <span class="tok-com">^^^^^^^^^^^^</span>
+                <span class="tok-out">same trust boundary as tool calling — now also crossing a process/machine boundary</span></pre>
+        </div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mcp-concept.md</div><div class="spacer"></div><div class="seg right">18 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 19 · A REAL MCP TOOL, SCHEMA IN AND OUT ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">index.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>a-real-mcp-tool</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">input schema, output schema, both enforced</div>
+        <h2 class="title reveal" style="font-size:52px;">A Real MCP Tool, <span class="hl">Schema In and Out</span></h2>
+        <div class="filemark reveal">mcp-movie-tool/src/index.ts</div>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">index.ts</div>
+            <pre>server<span class="tok-pun">.</span><span class="tok-fn">registerTool</span><span class="tok-pun">(</span><span class="tok-str">'recommend_movies'</span><span class="tok-pun">, {</span>
+  inputSchema<span class="tok-pun">: {</span>
+    genre<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">enum</span><span class="tok-pun">([</span><span class="tok-str">'drama'</span><span class="tok-pun">,</span> <span class="tok-str">'sci-fi'</span><span class="tok-pun">,</span> <span class="tok-str">'comedy'</span><span class="tok-pun">,</span> <span class="tok-str">'horror'</span><span class="tok-pun">]),</span>
+    minRating<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">number</span><span class="tok-pun">().</span><span class="tok-fn">min</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">).</span><span class="tok-fn">default</span><span class="tok-pun">(</span><span class="tok-num">0</span><span class="tok-pun">),</span>
+  <span class="tok-pun">},</span>
+  outputSchema<span class="tok-pun">: {</span> recommendations<span class="tok-pun">:</span> z<span class="tok-pun">.</span><span class="tok-fn">array</span><span class="tok-pun">(</span>MovieShape<span class="tok-pun">) },</span>
+<span class="tok-pun">},</span> <span class="tok-kw">async</span> <span class="tok-pun">({</span> genre<span class="tok-pun">,</span> minRating <span class="tok-pun">}) =&gt; {</span> <span class="tok-com">/* runs ONLY if input is valid */</span> <span class="tok-pun">});</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:14px;">The handler's parameters arrive already parsed and validated — there's no "what if the model sent the wrong type" branch to write, because the SDK never calls your handler if validation fails.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">index.ts</div><div class="spacer"></div><div class="seg right">19 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 20 · BOTH DIRECTIONS ARE CHECKED ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">mcp-result.jsonc</div>
+        <div class="breadcrumb">typescript-ai / <b>both-directions-are-checked</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">verified against the real server</div>
+        <h2 class="title reveal">Both Directions <span class="hl">Are Checked</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">mcp-result.jsonc</div>
+            <pre><span class="tok-com">// input: { "genre": "romance", "maxResults": 2 }  ← not in the enum</span>
+<span class="tok-pun">{</span>
+  <span class="tok-str">"isError"</span><span class="tok-pun">:</span> <span class="tok-kw">true</span><span class="tok-pun">,</span>
+  <span class="tok-str">"content"</span><span class="tok-pun">: [{</span> <span class="tok-str">"type"</span><span class="tok-pun">:</span> <span class="tok-str">"text"</span><span class="tok-pun">,</span>
+    <span class="tok-str">"text"</span><span class="tok-pun">:</span> <span class="tok-str">"MCP error -32602: Invalid option: ... at genre"</span> <span class="tok-pun">}]</span>
+<span class="tok-pun">}</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li>The handler <strong style="color:var(--red);">never ran</strong> — the SDK rejected the call before your code saw it</li>
+            <li><code class="icode">outputSchema</code> checks the way out too: your server can't accidentally return a shape it didn't promise</li>
+            <li>Run it yourself: <code class="icode">sample_code/typescript-ai/mcp-movie-tool</code> — <code class="icode">npm run inspect</code> opens the MCP Inspector</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">mcp-result.jsonc</div><div class="spacer"></div><div class="seg right">20 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 21 · SECTION DIVIDER: THE ECOSYSTEM ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">ecosystem.md</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 5</span></div>
+            <div class="sectitle">The <span class="hl">Ecosystem</span></div>
+            <div class="by" style="margin-top:18px;">one library's idea, or the whole space's default?<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 22 · THE PATTERN REPEATS EVERYWHERE ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">ecosystem.md</div>
+        <div class="breadcrumb">typescript-ai / <b>the-pattern-repeats-everywhere</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">not one library's design choice</div>
+        <h2 class="title reveal">The Pattern Repeats <span class="hl">Everywhere</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Layer</th><th>Example</th><th>What's typed</th></tr></thead>
+            <tbody>
+                <tr><td>LLM API clients</td><td>OpenAI SDK, Anthropic SDK</td><td>Request/response shapes, streaming event types</td></tr>
+                <tr><td>Structured output helpers</td><td>Vercel AI SDK's <code>generateObject</code></td><td>Takes a zod schema, returns a typed, validated object directly</td></tr>
+                <tr><td>Tool-calling helpers</td><td>Vercel AI SDK's <code>tool()</code></td><td>Same zod-schema-in, typed-handler-out shape as this lecture</td></tr>
+                <tr><td>Cross-process tools</td><td>MCP SDK</td><td>zod schemas at the protocol boundary, both directions</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">None of this is a new idea — it's the <b>same</b> schema-first, <code class="icode">unknown</code>-until-validated pattern from Part 1, packaged by every major tool in this space. Recognizing the pattern matters more than memorizing any one SDK's API.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">ecosystem.md</div><div class="spacer"></div><div class="seg right">22 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 23 · SECTION DIVIDER: PUTTING IT TOGETHER ============ -->
+<section class="slide lead">
+<div class="win"><div class="canvas">
+    <div class="terminal reveal">
+        <div class="titlebar">
+            <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+            <div class="tab">summary-layer.ts</div>
+        </div>
+        <div class="tbody">
+            <div class="prompt"><span class="path">~/typescript-ai</span> <span class="cmd">$ // Part 6</span></div>
+            <div class="sectitle">Putting It <span class="hl">Together</span></div>
+            <div class="by" style="margin-top:18px;">L17's API service layer — applied to one AI feature<span class="cursor"></span></div>
+        </div>
+    </div>
+</div></div>
+</section>
+
+<!-- ============ 24 · THE FULL PATH, TYPED AT EVERY BOUNDARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">full-path.md</div>
+        <div class="breadcrumb">typescript-ai / <b>the-full-path-typed-at-every-boundary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">one feature, traced end to end</div>
+        <h2 class="title reveal" style="font-size:52px;">The Full Path, <span class="hl">Typed at Every Boundary</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">full-path.md</div>
+            <pre><span class="tok-fn">buildRawSummary</span><span class="tok-pun">():</span> <span class="tok-cls">unknown</span>              <span class="tok-out">← "the model said this" — untrusted</span>
+        <span class="tok-op">↓</span>  MovieSummarySchema<span class="tok-pun">.</span><span class="tok-fn">safeParse</span><span class="tok-pun">()</span>
+<span class="tok-cls">MovieSummary</span>                          <span class="tok-out">← now a real, trusted type</span>
+        <span class="tok-op">↓</span>  SSE wire <span class="tok-com">(text, untyped again — it's a network!)</span>
+<span class="tok-cls">JSON</span><span class="tok-pun">.</span><span class="tok-fn">parse</span><span class="tok-pun">()</span> <span class="tok-op">+</span> MovieSummaryTailSchema<span class="tok-pun">.</span><span class="tok-fn">safeParse</span><span class="tok-pun">()</span>  <span class="tok-out">← re-validated on arrival</span>
+        <span class="tok-op">↓</span>
+<span class="tok-cls">AiSummaryState</span> <span class="tok-pun">(</span>discriminated union<span class="tok-pun">)</span>  <span class="tok-out">← impossible states are unrepresentable</span>
+        <span class="tok-op">↓</span>
+AiSummary<span class="tok-pun">.</span>tsx                         <span class="tok-out">← reads state.rating only when status === 'done'</span></pre>
+        </div>
+        <div class="note reveal" style="margin-top:16px;">Every arrow is a boundary crossing. Every boundary re-validates. This is the whole lecture, traced through one feature.</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">full-path.md</div><div class="spacer"></div><div class="seg right">24 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 25 · MODELING FAILURE, NOT JUST SUCCESS ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">useAiSummary.ts</div>
+        <div class="breadcrumb">typescript-ai / <b>modeling-failure-not-just-success</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">more failure modes than a typical CRUD call</div>
+        <h2 class="title reveal">Modeling Failure, <span class="hl">Not Just Success</span></h2>
+        <div class="codeblock sm reveal">
+            <div class="cb-bar">useAiSummary.ts</div>
+            <pre><span class="tok-kw">export type</span> AiSummaryState <span class="tok-op">=</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'idle'</span> <span class="tok-pun">}</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'streaming'</span><span class="tok-pun">;</span> verdict<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-pun">}</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'done'</span><span class="tok-pun">;</span> verdict<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">;</span> rating<span class="tok-pun">:</span> <span class="tok-cls">number</span><span class="tok-pun">;</span> tags<span class="tok-pun">:</span> <span class="tok-cls">string</span><span class="tok-pun">[] }</span>
+  <span class="tok-op">|</span> <span class="tok-pun">{</span> status<span class="tok-pun">:</span> <span class="tok-str">'error'</span><span class="tok-pun">;</span> message<span class="tok-pun">:</span> <span class="tok-cls">string</span> <span class="tok-pun">};</span></pre>
+        </div>
+        <ul class="list reveal" style="margin-top:16px;">
+            <li>Rate limits, refused answers, malformed generations, dropped connections — a real AI feature has <strong>more failure modes</strong> than a typical CRUD call, not fewer</li>
+            <li>A discriminated union forces every consumer to handle <code class="icode">'error'</code> — there's no <code class="icode">try { data.rating }</code> escape hatch that silently ships <code class="icode">undefined</code> to a template</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">useAiSummary.ts</div><div class="spacer"></div><div class="seg right">25 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 26 · CHOOSING WHERE TO PUT THE BOUNDARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">decision.md</div>
+        <div class="breadcrumb">typescript-ai / <b>choosing-where-to-put-the-boundary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">four situations, one rule</div>
+        <h2 class="title reveal" style="font-size:52px;">Choosing Where to <span class="hl">Put the Boundary</span></h2>
+        <table class="comp-table reveal">
+            <thead><tr><th>Situation</th><th>Put the schema at</th></tr></thead>
+            <tbody>
+                <tr><td>Calling an LLM directly for structured output</td><td>The response parser, before app code touches it</td></tr>
+                <tr><td>Exposing a function the model can call</td><td>The tool's argument schema</td></tr>
+                <tr><td>Exposing a tool across processes</td><td>The MCP <code>inputSchema</code> / <code>outputSchema</code></td></tr>
+                <tr><td>Streaming a result to the UI</td><td>Each chunk type, via a discriminated union</td></tr>
+            </tbody>
+        </table>
+        <div class="note reveal" style="margin-top:20px;">One rule underneath all four rows: <b>validate at the edge, trust in the middle.</b> Once data has passed a schema, let the type system do the rest — don't re-check the same value five call-stacks later "just in case."</div>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">decision.md</div><div class="spacer"></div><div class="seg right">26 / 27</div></div>
+</div>
+</section>
+
+<!-- ============ 27 · SUMMARY ============ -->
+<section class="slide">
+<div class="win">
+    <div class="titlebar">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="tab">typescript-ai</div>
+        <div class="breadcrumb">typescript-ai / <b>summary</b></div>
+    </div>
+    <div class="canvas">
+        <div class="kicker reveal">wrap-up</div>
+        <h2 class="title reveal">Lecture <span class="hl">Summary</span></h2>
+        <div class="filemark reveal">demo: reeltalk + reeltalk-api + mcp-movie-tool</div>
+        <ul class="list reveal">
+            <li><strong>The AI product path</strong>: prompt → structured output → tool calling → MCP → production — the same "untyped in, typed out" problem at every step</li>
+            <li><strong>zod</strong>: schema as the single source of truth; the type is <code class="icode">z.infer</code>'d, never hand-written separately</li>
+            <li><strong>Typed streaming</strong>: discriminated unions for stream state, re-validated on arrival</li>
+            <li><strong>Tool calling &amp; MCP</strong>: model-provided arguments are guesses at your contract — validate before running, in-process or across one</li>
+            <li><strong>The ecosystem</strong>: OpenAI, Anthropic, and Vercel AI SDK all repeat this same pattern</li>
+        </ul>
+    </div>
+    <div class="statusbar"><div class="seg branch">⎇ main</div><div class="seg">typescript-ai</div><div class="spacer"></div><div class="seg right">27 / 27</div></div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.progress = document.getElementById('progress');
+        this.wheelLock = false;
+        const hash = parseInt(location.hash.slice(1));
+        this.current = (hash >= 1 && hash <= this.slides.length) ? hash - 1 : 0;
+        this.show(this.current);
+        this.setupKeys();
+        this.setupTouch();
+        this.setupWheelNav();
+        this.fadeHint();
+        this.scaleStage();
+        window.addEventListener('resize', () => this.scaleStage());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+        });
+    }
+    scaleStage() {
+        const stage = document.getElementById('deckStage');
+        const vp = document.querySelector('.deck-viewport');
+        const s = Math.min(vp.offsetWidth / 1920, vp.offsetHeight / 1080);
+        const tx = (vp.offsetWidth - 1920 * s) / 2;
+        const ty = (vp.offsetHeight - 1080 * s) / 2;
+        stage.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+    }
+    setupKeys() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); this.next(); }
+            if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp') { e.preventDefault(); this.prev(); }
+        });
+    }
+    setupTouch() {
+        let x0 = null, y0 = null;
+        document.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? this.next() : this.prev());
+            x0 = y0 = null;
+        }, { passive: true });
+    }
+    setupWheelNav() {
+        window.addEventListener('wheel', (e) => {
+            if (this.wheelLock) return;
+            if (Math.abs(e.deltaY) < 24) return;
+            this.wheelLock = true;
+            (e.deltaY > 0 ? this.next() : this.prev());
+            setTimeout(() => { this.wheelLock = false; }, 650);
+        }, { passive: true });
+    }
+    fadeHint() { const h = document.getElementById('hint'); if (h) setTimeout(() => { h.style.opacity = '0'; }, 4200); }
+    next() { this.show(this.current + 1); }
+    prev() { this.show(this.current - 1); }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === this.current);
+            s.classList.toggle('visible', idx === this.current);
+        });
+        this.progress.style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.key = 'typescript-ai-slides-edits';
+        this.targets = document.querySelectorAll('h1, h2, h3, p, li, .tab, .prompt, .term-out, .by, .note, .kicker, .lead-in');
+        this.restore();
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets.forEach(t => t.setAttribute('contenteditable', this.isActive));
+        if (!this.isActive) this.save();
+    }
+    save() { const d = {}; this.targets.forEach((t,i) => d[i]=t.innerHTML); localStorage.setItem(this.key, JSON.stringify(d)); }
+    restore() { const raw = localStorage.getItem(this.key); if (!raw) return; try { const d = JSON.parse(raw); this.targets.forEach((t,i) => { if(d[i]!==undefined) t.innerHTML=d[i]; }); } catch(e){} }
+    download() { const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML; const b=new Blob([html],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='typescript-ai.html'; a.click(); }
+}
+const deck = new SlidePresentation();
+const editor = new InlineEditor();
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+editToggle.addEventListener('click', () => editor.toggleEditMode());
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', (e) => {
+    if ((e.key==='e'||e.key==='E') && e.target.getAttribute && e.target.getAttribute('contenteditable')!=='true') editor.toggleEditMode();
+    if ((e.ctrlKey||e.metaKey) && (e.key==='s'||e.key==='S')) { e.preventDefault(); editor.save(); editor.download(); }
+});
+</script>
+</body>
+</html>

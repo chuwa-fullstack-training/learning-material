@@ -1,0 +1,32 @@
+@import './tokens.css';
+
+/* Global reset + base element styles. Component-level styles live in
+   CSS Modules next to each component (e.g. MovieList.module.css) — this
+   file only holds things that are genuinely global: resets, typography
+   defaults, and the color-scheme hint for native form controls. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] body {
+  color-scheme: light;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+}

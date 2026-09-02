@@ -1,0 +1,44 @@
+/* Design tokens for ReelTalk's "cinema" visual system. CSS custom
+   properties, not a CSS-in-JS theme object — every component's CSS Module
+   just references var(--color-*), so switching the [data-theme] attribute
+   on <html> re-themes the whole app without any component re-rendering or
+   JS involvement at all. This is the concrete "theming" story CSS Modules
+   + custom properties give you for free. */
+:root {
+  --color-bg: #0b0b12;
+  --color-surface: #17171f;
+  --color-surface-hover: #1f1f2b;
+  --color-border: #2a2a35;
+  --color-text: #f0f0f5;
+  --color-text-muted: #9a9aab;
+  --color-accent: #e0b34c;
+  --color-accent-soft: rgba(224, 179, 76, 0.15);
+  --color-danger: #e0736c;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Light theme override — same token NAMES, different values. Nothing in
+   any component's CSS needs to change to support this. */
+:root[data-theme='light'] {
+  --color-bg: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eef0f4;
+  --color-border: #dcdce2;
+  --color-text: #17171f;
+  --color-text-muted: #5a5a6b;
+  --color-accent: #a97a1f;
+  --color-accent-soft: rgba(169, 122, 31, 0.12);
+  --color-danger: #b23b33;
+}

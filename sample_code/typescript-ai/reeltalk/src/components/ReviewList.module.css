@@ -1,0 +1,18 @@
+.list {
+  list-style: none;
+  padding: 0;
+}
+
+.review {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}

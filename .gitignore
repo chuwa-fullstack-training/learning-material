@@ -1,5 +1,6 @@
 .DS_Store
 */**/node_modules
+node_modules/
 
 Full Stack Training.mindnode
 TypeScript.mindnode
@@ -20,3 +21,7 @@ CLAUDE.md
 .claude
 .serena
 .playwright-mcp/
+skills-lock.json
+.agents/
+
+.frontend-slides/

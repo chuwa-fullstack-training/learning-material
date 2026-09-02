@@ -1,0 +1,42 @@
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.card {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.card:hover {
+  background: var(--color-surface-hover);
+}
+
+.card.active {
+  background: var(--color-accent-soft);
+}
+
+.poster {
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.meta,
+.stats {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.loadMore {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
